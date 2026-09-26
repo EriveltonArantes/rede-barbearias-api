@@ -5,9 +5,8 @@ import com.redebarbeariasapi.model.ConversaWhatsApp;
 import com.redebarbeariasapi.repository.ClienteRepository;
 import com.redebarbeariasapi.repository.ConversaWhatsAppRepository;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.CommandLineRunner;
-import org.springframework.core.Ordered;
-import org.springframework.core.annotation.Order;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -15,11 +14,11 @@ import java.util.List;
 
 /**
  * Base de demonstracao: algumas conversas de WhatsApp pra tela de atendimento nao abrir vazia.
- * Roda depois do seed principal e so quando ele esta ligado (app.seed=true).
+ * Roda com a aplicacao pronta (depois de todos os CommandLineRunner, inclusive o seed principal)
+ * e so quando o seed esta ligado (app.seed=true).
  */
 @Component
-@Order(Ordered.LOWEST_PRECEDENCE)
-public class ConversasDemo implements CommandLineRunner {
+public class ConversasDemo {
 
     private final ConversaWhatsAppRepository conversas;
     private final ClienteRepository clientes;
@@ -34,8 +33,8 @@ public class ConversasDemo implements CommandLineRunner {
         this.seed = seed;
     }
 
-    @Override
-    public void run(String... args) {
+    @EventListener(ApplicationReadyEvent.class)
+    public void popular() {
         if (!seed || conversas.count() > 0 || clientes.count() == 0) return;
         LocalDateTime agora = LocalDateTime.now();
         List<Cliente> base = clientes.findAllByOrderByNome();
