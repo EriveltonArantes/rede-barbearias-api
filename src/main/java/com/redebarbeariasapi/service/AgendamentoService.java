@@ -374,14 +374,44 @@ public class AgendamentoService {
     }
 
     private void cancelar(Agendamento a, String motivo) {
+        cancelar(a, motivo, true);
+    }
+
+    /** avisarCliente=false quando o proprio cliente cancelou por uma conversa que ja responde na hora (WhatsApp). */
+    private void cancelar(Agendamento a, String motivo, boolean avisarCliente) {
         a.setStatus(StatusAgendamento.CANCELADO);
         a.setMotivoCancelamento(motivo);
         a.setAtualizadoEm(LocalDateTime.now());
         if (a.getCupomCodigo() != null) {
             cupons.findByCodigoIgnoreCase(a.getCupomCodigo()).ifPresent(cp -> cp.setUsos(Math.max(0, cp.getUsos() - 1)));
         }
-        eventos.publishEvent(new AgendamentoEvento(a.getId(), TipoNotificacao.CANCELAMENTO));
+        if (avisarCliente) eventos.publishEvent(new AgendamentoEvento(a.getId(), TipoNotificacao.CANCELAMENTO));
         auditoria.registrar("CANCELAR", "Agendamento", a.getId(), motivo);
+    }
+
+    /**
+     * Cliente confirmou presenca (botao do lembrete no WhatsApp ou pagina "meu horario").
+     * Devolve false quando nao havia o que confirmar (ja confirmado).
+     */
+    public boolean confirmarPeloCliente(Agendamento a, String canal) {
+        if (a.getStatus().finalizado()) throw new BusinessException("Esse agendamento já está " + a.getStatus() + ".");
+        if (!a.getInicio().isAfter(LocalDateTime.now())) throw new BusinessException("Esse horário já passou.");
+        if (a.getStatus() == StatusAgendamento.CONFIRMADO) return false;
+        a.setStatus(StatusAgendamento.CONFIRMADO);
+        a.setAtualizadoEm(LocalDateTime.now());
+        auditoria.registrar("CONFIRMAR", "Agendamento", a.getId(), "Cliente confirmou presença (" + canal + ")");
+        return true;
+    }
+
+    /**
+     * Cliente avisou pelo WhatsApp que nao vem. Diferente do cancelamento pelo site, vale mesmo
+     * em cima da hora: e melhor liberar a cadeira do que esperar alguem que ja avisou que falta.
+     * Nao dispara o aviso de cancelamento — a resposta da conversa ja confirma pra ele.
+     */
+    public void cancelarPeloWhatsApp(Agendamento a) {
+        if (a.getStatus().finalizado()) throw new BusinessException("Esse agendamento já está " + a.getStatus() + ".");
+        boolean tardio = !podeCancelar(a);
+        cancelar(a, "Cliente pelo WhatsApp" + (tardio ? " (menos de " + antecedenciaCancelamentoHoras + "h antes)" : ""), false);
     }
 
     /** Fecha o atendimento: cobra (ou usa clube/fidelidade), calcula comissao e pontua o cliente. */

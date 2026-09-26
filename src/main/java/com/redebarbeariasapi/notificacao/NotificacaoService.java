@@ -172,7 +172,7 @@ public class NotificacaoService {
                 .orElseThrow(() -> new IllegalStateException("Crie um agendamento futuro pra usar como exemplo."));
         Mensagem base = mensagens.criar(exemplo, TipoNotificacao.CONFIRMACAO);
         Mensagem m = new Mensagem(base.tipo(), "Teste", email, telefone, "[TESTE] " + base.assunto(), base.html(),
-                base.texto(), base.modeloWhatsApp(), base.parametrosWhatsApp());
+                base.texto(), base.modeloWhatsApp(), base.parametrosWhatsApp(), base.botoesWhatsApp(), false);
         List<String> resultado = new ArrayList<>();
         for (CanalNotificacao c : canais) {
             if (!c.configurado()) { resultado.add(c.tipo() + ": não configurado"); continue; }

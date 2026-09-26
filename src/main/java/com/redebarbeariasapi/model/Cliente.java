@@ -36,6 +36,9 @@ public class Cliente {
     /** Pontos do programa de fidelidade (1 por atendimento pago). */
     private int pontos;
     private boolean aceitaMarketing = true;
+    /** Respondeu PARAR no WhatsApp: nao recebe mais mensagem automatica por la (e-mail continua). */
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean whatsappBloqueado;
 
     @Column(nullable = false)
     private LocalDateTime criadoEm = LocalDateTime.now();

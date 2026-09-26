@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -45,7 +46,8 @@ public class WhatsAppCanal implements CanalNotificacao {
 
     @Override
     public String destino(Mensagem m) {
-        if (m.telefone() == null || m.telefone().isBlank()) return null;
+        // cliente respondeu PARAR: nada automatico por WhatsApp
+        if (m.whatsappBloqueado() || m.telefone() == null || m.telefone().isBlank()) return null;
         String d = m.telefone().replaceAll("\\D", "");
         return d.startsWith("55") ? d : "55" + d;
     }
@@ -55,6 +57,14 @@ public class WhatsAppCanal implements CanalNotificacao {
         List<Map<String, String>> params = m.parametrosWhatsApp().stream()
                 .map(p -> Map.of("type", "text", "text", p == null ? "" : p))
                 .toList();
+        List<Map<String, Object>> componentes = new ArrayList<>();
+        componentes.add(Map.of("type", "body", "parameters", params));
+        // botoes de resposta rapida: o payload volta no webhook quando o cliente toca (CONFIRMAR:codigo...)
+        List<String> botoes = m.botoesWhatsApp() == null ? List.of() : m.botoesWhatsApp();
+        for (int i = 0; i < botoes.size(); i++) {
+            componentes.add(Map.of("type", "button", "sub_type", "quick_reply", "index", String.valueOf(i),
+                    "parameters", List.of(Map.of("type", "payload", "payload", botoes.get(i)))));
+        }
         Map<String, Object> corpo = Map.of(
                 "messaging_product", "whatsapp",
                 "to", destino,
@@ -62,7 +72,7 @@ public class WhatsAppCanal implements CanalNotificacao {
                 "template", Map.of(
                         "name", m.modeloWhatsApp(),
                         "language", Map.of("code", idioma),
-                        "components", List.of(Map.of("type", "body", "parameters", params))));
+                        "components", componentes));
         try {
             http.post().uri("/{id}/messages", phoneNumberId)
                     .header("Authorization", "Bearer " + token)

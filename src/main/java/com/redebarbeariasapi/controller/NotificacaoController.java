@@ -54,6 +54,8 @@ public class NotificacaoController {
         Map<String, Object> r = new LinkedHashMap<>();
         r.put("canais", service.statusCanais());
         r.put("modelosWhatsApp", MensagemFactory.MODELOS);
+        r.put("botoesWhatsApp", MensagemFactory.BOTOES);
+        r.put("rodapeWhatsApp", MensagemFactory.RODAPE);
         Map<String, Object> horarios = new LinkedHashMap<>();
         horarios.put("horaLembrete", service.horaLembrete());
         horarios.put("lembreteAntesMinutos", service.lembreteAntesMinutos());
@@ -112,18 +114,22 @@ public class NotificacaoController {
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/atendimento")
     public ConfiguracaoAtendimento salvarAtendimento(@RequestBody Map<String, Object> corpo) {
-        return atendimento.salvarConfiguracao(
-                corpo.get("respostaAutomatica") instanceof Boolean b ? b : null,
-                corpo.get("saudacao") instanceof String t ? t : null,
-                corpo.get("intervaloHoras") instanceof Number n ? n.intValue() : null,
-                corpo.get("mostrarProximoHorario") instanceof Boolean m ? m : null);
+        return atendimento.salvarConfiguracao(corpo);
     }
 
     @Operation(summary = "Mostra a resposta que um cliente receberia (não envia nada)")
     @PreAuthorize("hasAnyRole('ADMIN','GERENTE')")
     @PostMapping("/atendimento/simular")
-    public Map<String, Object> simular(@RequestBody Map<String, String> corpo) {
-        return Map.of("resposta", atendimento.simular(corpo.get("nome"), corpo.get("telefone"), LocalDateTime.now()));
+    public Map<String, Object> simular(@RequestBody Map<String, Object> corpo) {
+        var r = atendimento.simular(corpo.get("nome") instanceof String n ? n : null,
+                corpo.get("telefone") instanceof String t ? t : null,
+                corpo.get("texto") instanceof String x ? x : null,
+                corpo.get("foraDoHorario") instanceof Boolean b ? b : null, LocalDateTime.now());
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("resposta", r.resposta());
+        m.put("acao", r.acao());
+        m.put("motivo", r.motivo());
+        return m;
     }
 
     @Operation(summary = "Quem mandou mensagem no WhatsApp da barbearia")

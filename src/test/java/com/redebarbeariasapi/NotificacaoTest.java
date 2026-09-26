@@ -5,6 +5,7 @@ import com.redebarbeariasapi.notificacao.CanalNotificacao;
 import com.redebarbeariasapi.notificacao.Mensagem;
 import com.redebarbeariasapi.notificacao.MensagemFactory;
 import com.redebarbeariasapi.notificacao.NotificacaoService;
+import com.redebarbeariasapi.notificacao.WhatsAppCanal;
 import com.redebarbeariasapi.repository.*;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
@@ -213,6 +214,42 @@ class NotificacaoTest {
 
         a.getCliente().setPontos(10);
         assertThat(f.criar(a, TipoNotificacao.AVALIACAO).texto()).contains("Cartela completa");
+    }
+
+    @Test
+    void lembreteSaiComBotoesDeConfirmarECancelar() {
+        Agendamento a = marcadoOntem("31966660009", null, LocalDate.now().plusDays(1).atTime(9, 0));
+        MensagemFactory f = new MensagemFactory("https://site.teste", 10);
+        assertThat(f.criar(a, TipoNotificacao.LEMBRETE).botoesWhatsApp())
+                .containsExactly("CONFIRMAR:" + a.getCodigo(), "CANCELAR:" + a.getCodigo());
+        assertThat(f.criar(a, TipoNotificacao.LEMBRETE_PROXIMO).botoesWhatsApp()).hasSize(2);
+        assertThat(f.criar(a, TipoNotificacao.CONFIRMACAO).botoesWhatsApp()).isEmpty();
+        // o botao tem que existir no modelo cadastrado na Meta, na mesma quantidade
+        for (TipoNotificacao t : TipoNotificacao.values()) {
+            Mensagem m = f.criar(a, t);
+            assertThat(MensagemFactory.BOTOES.getOrDefault(m.modeloWhatsApp(), List.of())).hasSameSizeAs(m.botoesWhatsApp());
+        }
+    }
+
+    @Test
+    void clienteQuePediuPararNaoRecebeNadaPeloWhatsApp() {
+        Agendamento a = marcadoOntem("31966660010", null, LocalDate.now().plusDays(1).atTime(9, 0));
+        WhatsAppCanal wpp = new WhatsAppCanal("token", "123", "v21.0", "pt_BR");
+        MensagemFactory f = new MensagemFactory("https://site.teste", 10);
+        assertThat(wpp.destino(f.criar(a, TipoNotificacao.LEMBRETE))).isEqualTo("5531966660010");
+        a.getCliente().setWhatsappBloqueado(true);
+        assertThat(wpp.destino(f.criar(a, TipoNotificacao.LEMBRETE))).isNull();
+    }
+
+    @Test
+    void confirmarPresencaPeloSite() throws Exception {
+        LocalDateTime inicio = LocalDate.now().plusDays(2).atTime(17, 0);
+        String r = mvc.perform(post("/api/publico/agendamentos").contentType(MediaType.APPLICATION_JSON)
+                        .content(json("Iris Confirma", "31966660011", null, inicio)))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String codigo = r.replaceAll(".*\"codigo\":\"([A-Z0-9]+)\".*", "$1");
+        mvc.perform(post("/api/publico/agendamentos/" + codigo + "/confirmar")).andExpect(status().isOk());
+        assertThat(agendamentos.findByCodigo(codigo).orElseThrow().getStatus()).isEqualTo(StatusAgendamento.CONFIRMADO);
     }
 
     @Test

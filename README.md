@@ -26,21 +26,22 @@ Java 21 · Spring Boot 3.4 · Spring Security + JWT · Spring Data JPA (H2 / Pos
 - **Estoque e PDV**: entradas, ajustes de inventário, uso interno, venda com baixa de estoque, estorno e comissão por produto.
 - **Financeiro**: DRE simplificado, série diária por fonte de receita, caixa do dia, folha de comissões, contas a pagar.
 - **Notificações automáticas**: confirmação ao agendar, lembrete no dia, **lembrete 1 hora antes**, aviso de alteração/cancelamento e pedido de avaliação com a **cartela fidelidade** (✅✅✅⭕⭕…). Canais plugáveis: e-mail (SMTP) e WhatsApp oficial (Meta Cloud API, modelos prontos). Envio assíncrono após o commit, sem duplicar.
-- **Resposta automática no WhatsApp**: o cliente escreve no número da barbearia e recebe na hora a saudação com o link de agendamento; se já tem horário, recebe o horário, o link pra ver/cancelar e a cartela. Webhook com verificação de assinatura da Meta, sem repetir a resposta a cada mensagem, texto editável no painel. Funciona com o número que a barbearia já usa no app WhatsApp Business (coexistência da Meta).
+- **Atendimento automático no WhatsApp**: o cliente escreve no número da barbearia e recebe na hora a saudação com o link de agendamento (ou, com tudo fechado, "voltamos amanhã às 9h" + link); se já tem horário, recebe o horário, o link pra ver/cancelar e a cartela. No lembrete, os botões **Confirmo / Preciso cancelar** (ou responder 1 / 2) atualizam a agenda sozinhos — cancelar pelo WhatsApp vale mesmo em cima da hora, pra liberar a cadeira. **PARAR** desliga as mensagens automáticas daquele número (VOLTAR religa). Webhook com verificação de assinatura da Meta, sem repetir resposta, textos editáveis e simulador no painel. Funciona com o número que a barbearia já usa no app WhatsApp Business (coexistência da Meta).
+- **Confirmação de presença** também pela página "meu horário" (link do e-mail).
 - **Segurança**: papéis ADMIN / GERENTE / RECEPCAO / BARBEIRO / CLIENTE com escopo por unidade, auditoria de ações sensíveis, upload com verificação de tipo real do arquivo.
 - **Seed de demonstração** realista (3 unidades, 7 barbeiros, 600 clientes, ~60 dias de histórico relativo à data atual).
 
 ## Rodando
 ```bash
 mvn spring-boot:run          # H2 em memória + dados de demonstração em http://localhost:8080
-mvn test                     # 25 testes de integração (regras de negócio, notificações e WhatsApp)
+mvn test                     # 41 testes (regras de negócio, notificações, WhatsApp e URL do banco)
 docker build -t rede-barbearias-api . && docker run -p 8080:8080 rede-barbearias-api
 ```
 
 ## Variáveis de ambiente (produção)
 | Variável | Para quê |
 |---|---|
-| `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD` | PostgreSQL (sem elas: H2 em memória) |
+| `DATABASE_URL` | PostgreSQL — pode colar a URL do Neon/Render como vem (`postgresql://usuario:senha@host/banco`); sem ela: H2 em memória |
 | `JWT_SECRET` | segredo do token (≥ 32 caracteres) |
 | `ADMIN_USERNAME`, `ADMIN_PASSWORD` | admin inicial |
 | `APP_SEED` | `false` para não criar dados de demonstração |
@@ -50,3 +51,16 @@ docker build -t rede-barbearias-api . && docker run -p 8080:8080 rede-barbearias
 | `LEMBRETE_HORA`, `LEMBRETE_ANTES_MINUTOS` | hora do lembrete do dia (padrão 7) e antecedência do 2º lembrete (padrão 60, `0` desliga) |
 | `PIX_CHAVE`, `PIX_NOME`, `PIX_CIDADE` | recebedor do Pix |
 | `SITE_URL` | links usados nas mensagens |
+
+## Colocar em produção pra uma barbearia de verdade
+1. **Banco**: crie um projeto grátis no [Neon](https://neon.tech) (região São Paulo) e copie a *connection string*.
+2. **Render** → serviço `rede-barbearias-api` → *Environment*:
+   - `DATABASE_URL` = a connection string do Neon, do jeito que veio;
+   - `APP_SEED=false` (começa vazio, só com o admin) e troque `ADMIN_PASSWORD`;
+   - `SITE_URL` = endereço do site (links das mensagens).
+3. **Plano**: mude de *Free* pra *Starter*. No free o servidor dorme sem acesso e os lembretes não saem.
+4. **WhatsApp**: painel → Notificações → "Como ligar o WhatsApp oficial" (número que a barbearia já usa, modelos com botões, webhook).
+5. Faça login como admin, cadastre unidades, barbeiros e serviços, e divulgue o link `/#/agendar`.
+
+As tabelas são criadas e atualizadas sozinhas na primeira partida (`ddl-auto=update`); as colunas acrescentadas nesta versão vêm com valor padrão, pra atualizar o sistema sem quebrar um banco que já tem dados.
+

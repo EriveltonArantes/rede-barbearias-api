@@ -38,6 +38,17 @@ public class MensagemFactory {
         MODELOS.put("avaliacao_atendimento", "Obrigado pela visita, {{1}}! 💈 Como foi seu {{2}} com {{3}}? Avalie em 10 segundos: {{4}}\n\n{{5}}");
     }
 
+    /** Modelos com botoes de resposta rapida: cadastrar na Meta com esses textos, nessa ordem. */
+    public static final Map<String, List<String>> BOTOES = new LinkedHashMap<>();
+    static {
+        BOTOES.put("lembrete_agendamento", List.of("✅ Confirmo", "❌ Preciso cancelar"));
+        BOTOES.put("lembrete_1h", List.of("✅ Estou indo", "❌ Não vou conseguir"));
+    }
+    /** Rodape sugerido pros modelos (a Meta pede um jeito facil de parar de receber). */
+    public static final String RODAPE = "Pra não receber mais mensagens, responda PARAR";
+    public static final String CONFIRMAR = "CONFIRMAR:";
+    public static final String CANCELAR = "CANCELAR:";
+
     private final String siteUrl;
     private final int pontosResgate;
 
@@ -146,12 +157,13 @@ public class MensagemFactory {
             .append("<br>Você recebeu este e-mail porque agendou um horário com a gente.</p>")
             .append("</td></tr></table></td></tr></table></body></html>");
 
+        List<String> payloads = BOTOES.containsKey(modelo) ? List.of(CONFIRMAR + a.getCodigo(), CANCELAR + a.getCodigo()) : List.of();
         StringBuilder texto = new StringBuilder(titulo).append("\n\n").append(intro).append("\n\n");
         detalhes.forEach((k, v) -> texto.append(k).append(": ").append(v).append("\n"));
         for (String[] b : botoes) texto.append("\n").append(b[0]).append(": ").append(b[1]);
 
         return new Mensagem(tipo, a.getCliente().getNome(), a.getCliente().getEmail(), a.getCliente().getTelefone(),
-                assunto, html.toString(), texto.toString(), modelo, params);
+                assunto, html.toString(), texto.toString(), modelo, params, payloads, a.getCliente().isWhatsappBloqueado());
     }
 
     private static Map<String, String> detalhes(String dia, String hora, String servico, String barbeiro,

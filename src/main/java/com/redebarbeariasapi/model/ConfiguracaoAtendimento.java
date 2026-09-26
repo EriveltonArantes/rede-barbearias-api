@@ -20,6 +20,14 @@ public class ConfiguracaoAtendimento {
 
             Se preferir falar com a gente, é só mandar sua mensagem que já te respondemos 😉""";
 
+    public static final String FORA_HORARIO_PADRAO = """
+            Olá, {nome}! 💈 Agora estamos fechados — voltamos {abre}.
+
+            Mas você já pode garantir seu horário agora mesmo, é rapidinho 👇
+            {link_agendar}
+
+            Sua mensagem fica aqui e respondemos assim que abrirmos 😉""";
+
     @Id
     private Long id = 1L;
 
@@ -34,6 +42,17 @@ public class ConfiguracaoAtendimento {
     /** Quando o cliente ja tem horario marcado, acrescenta os dados dele e o link pra ver/cancelar. */
     private boolean mostrarProximoHorario = true;
 
+    /** Fora do horario de todas as unidades, responde com a mensagem de "fechados" (com o link pra agendar). */
+    @Column(nullable = false, columnDefinition = "boolean default true")
+    private boolean foraHorarioAtivo = true;
+
+    @Column(length = 1000)
+    private String mensagemForaHorario = FORA_HORARIO_PADRAO;
+
     private LocalDateTime atualizadoEm;
     private String atualizadoPor;
+
+    public String getMensagemForaHorario() {
+        return mensagemForaHorario == null || mensagemForaHorario.isBlank() ? FORA_HORARIO_PADRAO : mensagemForaHorario;
+    }
 }

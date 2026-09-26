@@ -98,6 +98,15 @@ public class PublicoController {
         return agenda.publico(agenda.porCodigo(codigo));
     }
 
+    @PostMapping("/agendamentos/{codigo}/confirmar")
+    @Transactional
+    public AgendamentoPublicoResponseDTO confirmar(@PathVariable String codigo, HttpServletRequest req) {
+        rateLimiter.verificar("confirmar", req);
+        Agendamento a = agenda.porCodigo(codigo);
+        agenda.confirmarPeloCliente(a, "site");
+        return agenda.publico(a);
+    }
+
     @PostMapping("/agendamentos/{codigo}/cancelar")
     @Transactional
     public AgendamentoPublicoResponseDTO cancelar(@PathVariable String codigo, @Valid @RequestBody CancelarPublicoDTO dto,

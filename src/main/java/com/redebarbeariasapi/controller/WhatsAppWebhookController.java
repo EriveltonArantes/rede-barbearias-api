@@ -85,7 +85,12 @@ public class WhatsAppWebhookController {
                             case "interactive" -> msg.path("interactive").path("button_reply").path("title").asText("");
                             default -> "(" + msg.path("type").asText("mensagem") + ")";
                         };
-                        var r = atendimento.receber(msg.path("id").asText(null), de, nome, texto, LocalDateTime.now());
+                        String payload = switch (msg.path("type").asText("")) {
+                            case "button" -> msg.path("button").path("payload").asText(null);
+                            case "interactive" -> msg.path("interactive").path("button_reply").path("id").asText(null);
+                            default -> null;
+                        };
+                        var r = atendimento.receber(msg.path("id").asText(null), de, nome, texto, payload, LocalDateTime.now());
                         log.info("WhatsApp de {}: {}", de, r.motivo());
                     }
                 }

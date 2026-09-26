@@ -2,6 +2,8 @@ services:
   - type: web
     name: rede-barbearias-api
     runtime: docker
+    # free "dorme" apos ~15 min sem acesso: os lembretes automaticos nao saem enquanto dorme.
+    # Pra barbearia de verdade use starter (sempre ligado).
     plan: free
     healthCheckPath: /actuator/health
     envVars:
@@ -11,3 +13,19 @@ services:
         generateValue: true
       - key: ADMIN_PASSWORD
         value: admin123
+      # Banco: cole a URL do Neon/Render como vem (postgresql://usuario:senha@host/banco?sslmode=require).
+      # Sem ela o sistema usa H2 em memoria e perde tudo a cada reinicio.
+      - key: DATABASE_URL
+        sync: false
+      # false = sistema vazio pra barbearia de verdade (so cria o admin)
+      - key: APP_SEED
+        value: "true"
+      # WhatsApp oficial (painel > Notificacoes tem o passo a passo)
+      - key: WHATSAPP_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: WHATSAPP_APP_SECRET
+        sync: false

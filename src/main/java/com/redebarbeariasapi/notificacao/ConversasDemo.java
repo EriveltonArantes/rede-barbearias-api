@@ -40,13 +40,19 @@ public class ConversasDemo {
         List<Cliente> base = clientes.findAllByOrderByNome();
         Cliente conhecido = base.get(Math.min(7, base.size() - 1));
         criar("5531987654321", "Lucas Ferreira", null, "Boa tarde! Vocês têm horário hoje à noite?", agora.minusMinutes(12), 1, true);
-        criar("55" + conhecido.getTelefone(), conhecido.getNome(), conhecido, "Oi, consigo passar meu horário pra mais tarde?", agora.minusMinutes(47), 2, true);
+        ConversaWhatsApp c2 = criar("55" + conhecido.getTelefone(), conhecido.getNome(), conhecido, "Oi, consigo passar meu horário pra mais tarde?", agora.minusMinutes(47), 2, true);
+        c2.setUltimaAcao("✅ Confirmou presença pelo lembrete");
+        conversas.save(c2);
         criar("5531991112233", "Thiago", null, "Qual o valor do corte + barba?", agora.minusHours(3), 3, true);
         criar("5531993334455", "Gabriel M.", null, "(audio)", agora.minusHours(20), 1, true);
         criar("5531995556677", "Diego", null, "Blz, obrigado!", agora.minusDays(2), 4, true);
+        ConversaWhatsApp parou = criar("5531997778899", "Renato", null, "PARAR", agora.minusDays(3), 2, false);
+        parou.setOptOut(true);
+        parou.setUltimaAcao("🚫 Pediu pra não receber mais mensagens");
+        conversas.save(parou);
     }
 
-    private void criar(String tel, String nome, Cliente cliente, String msg, LocalDateTime quando, int total, boolean respondida) {
+    private ConversaWhatsApp criar(String tel, String nome, Cliente cliente, String msg, LocalDateTime quando, int total, boolean respondida) {
         ConversaWhatsApp c = new ConversaWhatsApp();
         c.setTelefone(tel.replaceAll("\\D", ""));
         c.setNome(nome);
@@ -57,8 +63,8 @@ public class ConversasDemo {
         c.setTotalRecebidas(total);
         if (respondida) {
             c.setUltimaRespostaEm(total == 1 ? quando.plusSeconds(2) : quando.minusMinutes(30));
-            c.setUltimaResposta(atendimento.simular(nome, cliente == null ? null : cliente.getTelefone(), quando));
+            c.setUltimaResposta(atendimento.simular(nome, cliente == null ? null : cliente.getTelefone(), msg, false, quando).resposta());
         }
-        conversas.save(c);
+        return conversas.save(c);
     }
 }
