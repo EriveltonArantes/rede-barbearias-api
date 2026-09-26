@@ -77,9 +77,33 @@ public class WhatsAppCanal implements CanalNotificacao {
         }
     }
 
+    /**
+     * Texto livre (sem modelo). A Meta so aceita dentro das 24h depois da ultima mensagem
+     * do cliente — e o caso da resposta automatica, que sai logo que ele escreve.
+     */
+    public void enviarTexto(String destino, String texto) {
+        Map<String, Object> corpo = Map.of(
+                "messaging_product", "whatsapp",
+                "to", destino,
+                "type", "text",
+                "text", Map.of("body", texto, "preview_url", true));
+        try {
+            http.post().uri("/{id}/messages", phoneNumberId)
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(corpo)
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (RestClientResponseException e) {
+            String txt = e.getResponseBodyAsString();
+            throw new IllegalStateException("Meta respondeu " + e.getStatusCode().value() + ": "
+                    + (txt.length() > 300 ? txt.substring(0, 300) : txt));
+        }
+    }
+
     @Override
     public String descricao() {
         return configurado() ? "Meta Cloud API · número " + phoneNumberId
-                : "Desligado: defina WHATSAPP_TOKEN e WHATSAPP_PHONE_NUMBER_ID (e aprove os modelos na Meta)";
+                : "Desligado: ligue o número da barbearia na Meta e defina WHATSAPP_TOKEN e WHATSAPP_PHONE_NUMBER_ID (passo a passo abaixo)";
     }
 }

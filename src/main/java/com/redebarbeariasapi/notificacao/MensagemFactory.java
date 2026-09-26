@@ -32,15 +32,37 @@ public class MensagemFactory {
     static {
         MODELOS.put("agendamento_confirmado", "Olá, {{1}}! Seu horário está confirmado ✅\n\n📅 {{2}} às {{3}}\n✂️ {{4}} com {{5}}\n📍 {{6}}\n\nCódigo: {{7}}\nPara consultar ou cancelar: {{8}}");
         MODELOS.put("lembrete_agendamento", "Bom dia, {{1}}! Não esqueça: hoje às {{2}} tem {{3}} com {{4}} 💈\n📍 {{5}}\n\nPrecisa remarcar ou cancelar? {{6}}");
+        MODELOS.put("lembrete_1h", "{{1}}, seu horário é daqui a pouco! ⏰\n\nÀs {{2}}: {{3}} com {{4}}\n📍 {{5}}\n\nVai atrasar ou não vai conseguir vir? Avise por aqui ou pelo link: {{6}}");
         MODELOS.put("agendamento_alterado", "{{1}}, seu horário foi alterado 🔁\n\n📅 {{2}} às {{3}}\n✂️ {{4}} com {{5}}\n📍 {{6}}\n\nDetalhes: {{7}}");
         MODELOS.put("agendamento_cancelado", "{{1}}, seu horário de {{2}} às {{3}} na {{4}} foi cancelado. Quando quiser, agende de novo: {{5}}");
-        MODELOS.put("avaliacao_atendimento", "Obrigado pela visita, {{1}}! 💈 Como foi seu {{2}} com {{3}}? Avalie em 10 segundos: {{4}}");
+        MODELOS.put("avaliacao_atendimento", "Obrigado pela visita, {{1}}! 💈 Como foi seu {{2}} com {{3}}? Avalie em 10 segundos: {{4}}\n\n{{5}}");
     }
 
     private final String siteUrl;
+    private final int pontosResgate;
 
-    public MensagemFactory(@Value("${app.site-url}") String siteUrl) {
+    public MensagemFactory(@Value("${app.site-url}") String siteUrl,
+                           @Value("${app.fidelidade.pontos-resgate:10}") int pontosResgate) {
         this.siteUrl = siteUrl.replaceAll("/+$", "");
+        this.pontosResgate = pontosResgate;
+    }
+
+    public String siteUrl() {
+        return siteUrl;
+    }
+
+    /**
+     * Cartela de fidelidade em texto: "✅✅✅⭕⭕⭕⭕⭕⭕⭕ 3 de 10 — faltam 7 pra ganhar um atendimento".
+     * Funciona igual no e-mail e no WhatsApp.
+     */
+    public String cartelaFidelidade(int pontos) {
+        if (pontosResgate <= 0) return "";
+        if (pontos >= pontosResgate) {
+            return "✅".repeat(pontosResgate) + "\n🎁 Cartela completa! Seu próximo atendimento pode sair de graça, é só avisar na recepção.";
+        }
+        int faltam = pontosResgate - pontos;
+        return "✅".repeat(pontos) + "⭕".repeat(faltam) + "\n" + pontos + " de " + pontosResgate
+                + " no cartão fidelidade: falta" + (faltam == 1 ? " 1" : "m " + faltam) + " pra você ganhar um atendimento 😎";
     }
 
     public Mensagem criar(Agendamento a, TipoNotificacao tipo) {
@@ -68,6 +90,12 @@ public class MensagemFactory {
                     detalhes(dia, hora, servico, barbeiro, unidade, endereco, valor, a.getCodigo()),
                     List.<String[]>of(botao("Ver ou cancelar", linkHorario), botao("Como chegar", "https://www.google.com/maps/search/?api=1&query=" + enc(endereco + ", " + a.getUnidade().getCidade()))),
                     "lembrete_agendamento", List.of(nome, hora, servico, barbeiro, unidade + ", " + endereco, linkHorario));
+            case LEMBRETE_PROXIMO -> montar(a, tipo, "⏰ Daqui a pouco, às " + hora + ": seu " + servico,
+                    "Seu horário é daqui a pouco, " + nome + "!",
+                    "Às " + hora + " o " + barbeiro + " te espera. Se for atrasar ou não puder vir, avise pra gente reorganizar a agenda.",
+                    detalhes(dia, hora, servico, barbeiro, unidade, endereco, valor, a.getCodigo()),
+                    List.<String[]>of(botao("Como chegar", "https://www.google.com/maps/search/?api=1&query=" + enc(endereco + ", " + a.getUnidade().getCidade())), botao("Ver ou cancelar", linkHorario)),
+                    "lembrete_1h", List.of(nome, hora, servico, barbeiro, unidade + ", " + endereco, linkHorario));
             case REAGENDAMENTO -> montar(a, tipo, "🔁 Seu horário mudou: " + dia + " às " + hora,
                     "Seu horário foi alterado, " + nome,
                     "Confira os novos dados abaixo. O código continua o mesmo.",
@@ -80,12 +108,16 @@ public class MensagemFactory {
                     Map.of(),
                     List.<String[]>of(botao("Agendar novo horário", linkAgendar)),
                     "agendamento_cancelado", List.of(nome, dia, hora, unidade, linkAgendar));
-            case AVALIACAO -> montar(a, tipo, "Como foi seu " + servico + "? ⭐",
-                    "Obrigado pela visita, " + nome + "!",
-                    "Sua opinião ajuda o " + barbeiro + " e toda a equipe. Leva 10 segundos.",
-                    Map.of(),
-                    List.<String[]>of(botao("⭐ Avaliar atendimento", linkHorario)),
-                    "avaliacao_atendimento", List.of(nome, servico, barbeiro, linkHorario));
+            case AVALIACAO -> {
+                String cartela = cartelaFidelidade(a.getCliente().getPontos());
+                Map<String, String> fidelidade = cartela.isEmpty() ? Map.of() : Map.of("Fidelidade", cartela);
+                yield montar(a, tipo, "Como foi seu " + servico + "? ⭐",
+                        "Obrigado pela visita, " + nome + "!",
+                        "Sua opinião ajuda o " + barbeiro + " e toda a equipe. Leva 10 segundos.",
+                        fidelidade,
+                        List.<String[]>of(botao("⭐ Avaliar atendimento", linkHorario)),
+                        "avaliacao_atendimento", List.of(nome, servico, barbeiro, linkHorario, cartela.isEmpty() ? "Até a próxima! 💈" : umaLinha(cartela)));
+            }
         };
     }
 
@@ -102,7 +134,7 @@ public class MensagemFactory {
         if (!detalhes.isEmpty()) {
             html.append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#f7f2e8;border-radius:12px;padding:6px 14px;margin-bottom:18px\">");
             detalhes.forEach((k, v) -> html.append("<tr><td style=\"padding:6px 0;color:#6b5f52;font-size:13px;width:90px\">").append(esc(k))
-                    .append("</td><td style=\"padding:6px 0;font-size:15px;font-weight:bold\">").append(esc(v)).append("</td></tr>"));
+                    .append("</td><td style=\"padding:6px 0;font-size:15px;font-weight:bold\">").append(esc(v).replace("\n", "<br>")).append("</td></tr>"));
             html.append("</table>");
         }
         for (String[] b : botoes) {
@@ -140,6 +172,11 @@ public class MensagemFactory {
                 + "&dates=" + a.getInicio().format(f) + "/" + a.getFim().format(f)
                 + "&location=" + enc(unidade + ", " + endereco)
                 + "&details=" + enc("Código " + a.getCodigo() + " · " + siteUrl + "/#/meu-horario/" + a.getCodigo());
+    }
+
+    /** A Meta recusa parametro de modelo com quebra de linha, tab ou mais de 4 espacos seguidos. */
+    static String umaLinha(String s) {
+        return s.replaceAll("\\s*\\n\\s*", " — ").replaceAll("[\\t ]{2,}", " ");
     }
 
     private static String[] botao(String rotulo, String url) {

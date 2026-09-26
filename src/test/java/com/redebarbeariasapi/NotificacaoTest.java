@@ -173,6 +173,49 @@ class NotificacaoTest {
     }
 
     @Test
+    void lembreteUmaHoraAntesSaiSozinhoEUmaVezSo() {
+        LocalDateTime agora = LocalDateTime.now().withSecond(0).withNano(0);
+        Assumptions.assumeTrue(agora.getHour() < 22);
+        Agendamento a = marcadoOntem("31966660006", "joao@teste.com", agora.plusMinutes(45));
+
+        notificacoes.processarAutomaticos(agora);
+        notificacoes.processarAutomaticos(agora.plusMinutes(5));
+        List<Mensagem> proximos = CanalFalso.CAIXA.stream().filter(m -> m.tipo() == TipoNotificacao.LEMBRETE_PROXIMO).toList();
+        assertThat(proximos).hasSize(1);
+        assertThat(proximos.get(0).assunto()).contains("Daqui a pouco");
+        // ja esta dentro da janela de 1h: nao manda tambem o "lembrete do dia" (seriam 2 seguidos)
+        assertThat(CanalFalso.CAIXA.stream().filter(m -> m.tipo() == TipoNotificacao.LEMBRETE)).isEmpty();
+        assertThat(agendamentos.findById(a.getId()).orElseThrow().isLembreteEnviado()).isTrue();
+    }
+
+    @Test
+    void quemMarcouEmCimaDaHoraNaoRecebeLembreteDeUmaHora() {
+        LocalDateTime agora = LocalDateTime.now().withSecond(0).withNano(0);
+        Assumptions.assumeTrue(agora.getHour() < 22);
+        Agendamento a = marcadoOntem("31966660007", "lu@teste.com", agora.plusMinutes(40));
+        a.setCriadoEm(agora.minusMinutes(5)); // marcou ha 5 min pra daqui a 40: acabou de receber a confirmacao
+        agendamentos.save(a);
+
+        notificacoes.processarAutomaticos(agora);
+        assertThat(CanalFalso.CAIXA.stream().filter(m -> m.tipo() == TipoNotificacao.LEMBRETE_PROXIMO)).isEmpty();
+    }
+
+    @Test
+    void cartelaDeFidelidadeApareceNoPedidoDeAvaliacao() {
+        Agendamento a = marcadoOntem("31966660008", "fiel@teste.com", LocalDate.now().plusDays(1).atTime(10, 0));
+        a.getCliente().setPontos(4);
+        MensagemFactory f = new MensagemFactory("https://site.teste", 10);
+        Mensagem m = f.criar(a, TipoNotificacao.AVALIACAO);
+        assertThat(m.texto()).contains("✅✅✅✅⭕⭕⭕⭕⭕⭕").contains("4 de 10").contains("faltam 6");
+        assertThat(m.html()).contains("✅✅✅✅⭕");
+        // parametro de modelo da Meta nao pode ter quebra de linha
+        assertThat(m.parametrosWhatsApp()).allSatisfy(p -> assertThat(p).doesNotContain("\n"));
+
+        a.getCliente().setPontos(10);
+        assertThat(f.criar(a, TipoNotificacao.AVALIACAO).texto()).contains("Cartela completa");
+    }
+
+    @Test
     void cancelarPeloSiteAvisaOCliente() throws Exception {
         LocalDateTime inicio = LocalDate.now().plusDays(3).atTime(11, 0);
         String r = mvc.perform(post("/api/publico/agendamentos").contentType(MediaType.APPLICATION_JSON)
@@ -188,7 +231,7 @@ class NotificacaoTest {
     @Test
     void modelosDoWhatsAppBatemComOsParametros() {
         Agendamento a = marcadoOntem("31966660005", null, LocalDate.now().plusDays(5).atTime(10, 0));
-        MensagemFactory f = new MensagemFactory("https://site.teste");
+        MensagemFactory f = new MensagemFactory("https://site.teste", 10);
         Pattern p = Pattern.compile("\\{\\{(\\d+)}}");
         for (TipoNotificacao tipo : TipoNotificacao.values()) {
             Mensagem m = f.criar(a, tipo);

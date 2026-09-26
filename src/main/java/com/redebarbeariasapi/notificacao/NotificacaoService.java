@@ -34,11 +34,13 @@ public class NotificacaoService {
     private final AvaliacaoRepository avaliacoes;
     private final int horaLembrete;
     private final int avaliacaoAposMinutos;
+    private final int lembreteAntesMinutos;
 
     public NotificacaoService(List<CanalNotificacao> canais, MensagemFactory mensagens, NotificacaoRepository repo,
                               AgendamentoRepository agendamentos, AvaliacaoRepository avaliacoes,
                               @Value("${app.notificacoes.hora-lembrete:7}") int horaLembrete,
-                              @Value("${app.notificacoes.avaliacao-apos-minutos:90}") int avaliacaoAposMinutos) {
+                              @Value("${app.notificacoes.avaliacao-apos-minutos:90}") int avaliacaoAposMinutos,
+                              @Value("${app.notificacoes.lembrete-antes-minutos:60}") int lembreteAntesMinutos) {
         this.canais = canais;
         this.mensagens = mensagens;
         this.repo = repo;
@@ -46,7 +48,12 @@ public class NotificacaoService {
         this.avaliacoes = avaliacoes;
         this.horaLembrete = horaLembrete;
         this.avaliacaoAposMinutos = avaliacaoAposMinutos;
+        this.lembreteAntesMinutos = lembreteAntesMinutos;
     }
+
+    public int horaLembrete() { return horaLembrete; }
+    public int lembreteAntesMinutos() { return lembreteAntesMinutos; }
+    public int avaliacaoAposMinutos() { return avaliacaoAposMinutos; }
 
     /** Envia uma mensagem de um agendamento por todos os canais disponiveis. Devolve quantos envios deram certo. */
     @Transactional
@@ -87,31 +94,46 @@ public class NotificacaoService {
             }
             repo.save(n);
         }
-        if (ok > 0 && tipo == TipoNotificacao.LEMBRETE) a.setLembreteEnviado(true);
+        if (ok > 0 && (tipo == TipoNotificacao.LEMBRETE || tipo == TipoNotificacao.LEMBRETE_PROXIMO)) a.setLembreteEnviado(true);
         return ok;
     }
 
     private boolean faz_sentido(Agendamento a, TipoNotificacao tipo) {
         return switch (tipo) {
-            case CONFIRMACAO, REAGENDAMENTO, LEMBRETE -> ABERTOS.contains(a.getStatus()) && a.getInicio().isAfter(LocalDateTime.now());
+            case CONFIRMACAO, REAGENDAMENTO, LEMBRETE, LEMBRETE_PROXIMO -> ABERTOS.contains(a.getStatus()) && a.getInicio().isAfter(LocalDateTime.now());
             case CANCELAMENTO -> a.getStatus() == StatusAgendamento.CANCELADO && a.getInicio().isAfter(LocalDateTime.now());
             case AVALIACAO -> a.getStatus() == StatusAgendamento.CONCLUIDO && !avaliacoes.existsByAgendamentoId(a.getId());
         };
     }
 
     /**
-     * Rodada periodica: lembrete do dia (a partir da hora configurada, so pra quem marcou
-     * antes de hoje — quem marcou hoje acabou de receber a confirmacao) e pedido de avaliacao.
+     * Rodada periodica:
+     * - lembrete do dia (a partir da hora configurada, so pra quem marcou antes de hoje — quem marcou
+     *   hoje acabou de receber a confirmacao). Horario que ja esta dentro da janela do "1 hora antes"
+     *   fica so com esse, pra o cliente nao receber dois lembretes seguidos;
+     * - lembrete pouco antes do horario (padrao 1h), pra quem marcou com mais antecedencia que isso;
+     * - pedido de avaliacao depois do pagamento.
      */
     @Transactional
     public Map<String, Integer> processarAutomaticos(LocalDateTime agora) {
-        int lembretes = 0, pedidos = 0;
+        int lembretes = 0, proximos = 0, pedidos = 0;
         if (algumCanalConfigurado()) {
             LocalDate hoje = agora.toLocalDate();
+            LocalDateTime limiteProximo = agora.plusMinutes(Math.max(lembreteAntesMinutos, 0));
             if (agora.getHour() >= horaLembrete) {
                 for (Agendamento a : agendamentos.filtrar(hoje.atStartOfDay(), hoje.plusDays(1).atStartOfDay(), null, null, null, null)) {
-                    if (ABERTOS.contains(a.getStatus()) && a.getInicio().isAfter(agora) && a.getCriadoEm().isBefore(hoje.atStartOfDay())) {
+                    boolean ficaProLembreteProximo = lembreteAntesMinutos > 0 && !a.getInicio().isAfter(limiteProximo);
+                    if (ABERTOS.contains(a.getStatus()) && a.getInicio().isAfter(agora) && a.getCriadoEm().isBefore(hoje.atStartOfDay())
+                            && !ficaProLembreteProximo) {
                         lembretes += enviar(a.getId(), TipoNotificacao.LEMBRETE);
+                    }
+                }
+            }
+            if (lembreteAntesMinutos > 0) {
+                for (Agendamento a : agendamentos.filtrar(agora, limiteProximo.plusSeconds(1), null, null, null, null)) {
+                    if (ABERTOS.contains(a.getStatus()) && a.getInicio().isAfter(agora)
+                            && a.getCriadoEm().isBefore(a.getInicio().minusMinutes(lembreteAntesMinutos))) {
+                        proximos += enviar(a.getId(), TipoNotificacao.LEMBRETE_PROXIMO);
                     }
                 }
             }
@@ -123,6 +145,7 @@ public class NotificacaoService {
         }
         Map<String, Integer> r = new LinkedHashMap<>();
         r.put("lembretes", lembretes);
+        r.put("lembretesProximos", proximos);
         r.put("pedidosAvaliacao", pedidos);
         return r;
     }

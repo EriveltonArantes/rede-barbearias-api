@@ -1,0 +1,65 @@
+package com.redebarbeariasapi.notificacao;
+
+import com.redebarbeariasapi.model.Cliente;
+import com.redebarbeariasapi.model.ConversaWhatsApp;
+import com.redebarbeariasapi.repository.ClienteRepository;
+import com.redebarbeariasapi.repository.ConversaWhatsAppRepository;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
+import org.springframework.stereotype.Component;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+/**
+ * Base de demonstracao: algumas conversas de WhatsApp pra tela de atendimento nao abrir vazia.
+ * Roda depois do seed principal e so quando ele esta ligado (app.seed=true).
+ */
+@Component
+@Order(Ordered.LOWEST_PRECEDENCE)
+public class ConversasDemo implements CommandLineRunner {
+
+    private final ConversaWhatsAppRepository conversas;
+    private final ClienteRepository clientes;
+    private final AtendimentoWhatsAppService atendimento;
+    private final boolean seed;
+
+    public ConversasDemo(ConversaWhatsAppRepository conversas, ClienteRepository clientes,
+                         AtendimentoWhatsAppService atendimento, @Value("${app.seed:true}") boolean seed) {
+        this.conversas = conversas;
+        this.clientes = clientes;
+        this.atendimento = atendimento;
+        this.seed = seed;
+    }
+
+    @Override
+    public void run(String... args) {
+        if (!seed || conversas.count() > 0 || clientes.count() == 0) return;
+        LocalDateTime agora = LocalDateTime.now();
+        List<Cliente> base = clientes.findAllByOrderByNome();
+        Cliente conhecido = base.get(Math.min(7, base.size() - 1));
+        criar("5531987654321", "Lucas Ferreira", null, "Boa tarde! Vocês têm horário hoje à noite?", agora.minusMinutes(12), 1, true);
+        criar("55" + conhecido.getTelefone(), conhecido.getNome(), conhecido, "Oi, consigo passar meu horário pra mais tarde?", agora.minusMinutes(47), 2, true);
+        criar("5531991112233", "Thiago", null, "Qual o valor do corte + barba?", agora.minusHours(3), 3, true);
+        criar("5531993334455", "Gabriel M.", null, "(audio)", agora.minusHours(20), 1, true);
+        criar("5531995556677", "Diego", null, "Blz, obrigado!", agora.minusDays(2), 4, true);
+    }
+
+    private void criar(String tel, String nome, Cliente cliente, String msg, LocalDateTime quando, int total, boolean respondida) {
+        ConversaWhatsApp c = new ConversaWhatsApp();
+        c.setTelefone(tel.replaceAll("\\D", ""));
+        c.setNome(nome);
+        c.setCliente(cliente);
+        c.setUltimaMensagem(msg);
+        c.setUltimaMensagemId("demo-" + tel);
+        c.setUltimaRecebidaEm(quando);
+        c.setTotalRecebidas(total);
+        if (respondida) {
+            c.setUltimaRespostaEm(total == 1 ? quando.plusSeconds(2) : quando.minusMinutes(30));
+            c.setUltimaResposta(atendimento.simular(nome, cliente == null ? null : cliente.getTelefone(), quando));
+        }
+        conversas.save(c);
+    }
+}

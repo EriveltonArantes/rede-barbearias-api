@@ -14,7 +14,7 @@ import java.util.Map;
 
 /**
  * Liga a agenda as mensagens: eventos viram envio em segundo plano (o cliente nao espera
- * o SMTP pra ver a confirmacao na tela) e uma rodada a cada 10 min cuida de lembrete e avaliacao.
+ * o SMTP pra ver a confirmacao na tela) e uma rodada a cada 5 min cuida dos lembretes e da avaliacao.
  */
 @Component
 @RequiredArgsConstructor
@@ -33,7 +33,7 @@ public class NotificacaoListener {
         }
     }
 
-    @Scheduled(initialDelay = 120_000, fixedDelay = 600_000)
+    @Scheduled(initialDelay = 120_000, fixedDelay = 300_000)
     public void rodadaAutomatica() {
         try {
             Map<String, Integer> r = service.processarAutomaticos(LocalDateTime.now());

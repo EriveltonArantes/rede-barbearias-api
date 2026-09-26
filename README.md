@@ -25,14 +25,15 @@ Java 21 · Spring Boot 3.4 · Spring Security + JWT · Spring Data JPA (H2 / Pos
 - **Clube de assinatura**: planos, ciclos mensais, renovação, suspensão automática de inadimplentes (job diário).
 - **Estoque e PDV**: entradas, ajustes de inventário, uso interno, venda com baixa de estoque, estorno e comissão por produto.
 - **Financeiro**: DRE simplificado, série diária por fonte de receita, caixa do dia, folha de comissões, contas a pagar.
-- **Notificações automáticas**: confirmação ao agendar, lembrete no dia, aviso de alteração/cancelamento e pedido de avaliação. Canais plugáveis: e-mail (SMTP) e WhatsApp oficial (Meta Cloud API, modelos prontos). Envio assíncrono após o commit, sem duplicar.
+- **Notificações automáticas**: confirmação ao agendar, lembrete no dia, **lembrete 1 hora antes**, aviso de alteração/cancelamento e pedido de avaliação com a **cartela fidelidade** (✅✅✅⭕⭕…). Canais plugáveis: e-mail (SMTP) e WhatsApp oficial (Meta Cloud API, modelos prontos). Envio assíncrono após o commit, sem duplicar.
+- **Resposta automática no WhatsApp**: o cliente escreve no número da barbearia e recebe na hora a saudação com o link de agendamento; se já tem horário, recebe o horário, o link pra ver/cancelar e a cartela. Webhook com verificação de assinatura da Meta, sem repetir a resposta a cada mensagem, texto editável no painel. Funciona com o número que a barbearia já usa no app WhatsApp Business (coexistência da Meta).
 - **Segurança**: papéis ADMIN / GERENTE / RECEPCAO / BARBEIRO / CLIENTE com escopo por unidade, auditoria de ações sensíveis, upload com verificação de tipo real do arquivo.
 - **Seed de demonstração** realista (3 unidades, 7 barbeiros, 600 clientes, ~60 dias de histórico relativo à data atual).
 
 ## Rodando
 ```bash
 mvn spring-boot:run          # H2 em memória + dados de demonstração em http://localhost:8080
-mvn test                     # 16 testes de integração (regras de negócio e notificações)
+mvn test                     # 25 testes de integração (regras de negócio, notificações e WhatsApp)
 docker build -t rede-barbearias-api . && docker run -p 8080:8080 rede-barbearias-api
 ```
 
@@ -45,5 +46,7 @@ docker build -t rede-barbearias-api . && docker run -p 8080:8080 rede-barbearias
 | `APP_SEED` | `false` para não criar dados de demonstração |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `MAIL_FROM` | e-mails automáticos (ex.: Brevo grátis) |
 | `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` | WhatsApp oficial (modelos em `MensagemFactory.MODELOS`) |
+| `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET` | webhook `/api/whatsapp/webhook` (resposta automática) |
+| `LEMBRETE_HORA`, `LEMBRETE_ANTES_MINUTOS` | hora do lembrete do dia (padrão 7) e antecedência do 2º lembrete (padrão 60, `0` desliga) |
 | `PIX_CHAVE`, `PIX_NOME`, `PIX_CIDADE` | recebedor do Pix |
 | `SITE_URL` | links usados nas mensagens |
