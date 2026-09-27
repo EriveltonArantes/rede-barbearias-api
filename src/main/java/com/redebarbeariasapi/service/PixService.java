@@ -100,7 +100,7 @@ public class PixService {
         return String.format("%04X", crc);
     }
 
-    private static String qrCode(String conteudo) {
+    public static String qrCode(String conteudo) {
         try {
             BitMatrix m = new QRCodeWriter().encode(conteudo, BarcodeFormat.QR_CODE, 360, 360,
                     Map.of(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M, EncodeHintType.MARGIN, 1));

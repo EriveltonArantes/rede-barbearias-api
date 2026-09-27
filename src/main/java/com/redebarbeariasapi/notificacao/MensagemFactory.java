@@ -1,6 +1,11 @@
 package com.redebarbeariasapi.notificacao;
 
 import com.redebarbeariasapi.model.Agendamento;
+import com.redebarbeariasapi.model.Barbeiro;
+import com.redebarbeariasapi.model.Cliente;
+import com.redebarbeariasapi.model.Cupom;
+import com.redebarbeariasapi.model.ListaEspera;
+import com.redebarbeariasapi.model.Unidade;
 import com.redebarbeariasapi.model.TipoNotificacao;
 import com.redebarbeariasapi.service.Textos;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,6 +16,8 @@ import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.NumberFormat;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -36,6 +43,18 @@ public class MensagemFactory {
         MODELOS.put("agendamento_alterado", "{{1}}, seu horário foi alterado 🔁\n\n📅 {{2}} às {{3}}\n✂️ {{4}} com {{5}}\n📍 {{6}}\n\nDetalhes: {{7}}");
         MODELOS.put("agendamento_cancelado", "{{1}}, seu horário de {{2}} às {{3}} na {{4}} foi cancelado. Quando quiser, agende de novo: {{5}}");
         MODELOS.put("avaliacao_atendimento", "Obrigado pela visita, {{1}}! 💈 Como foi seu {{2}} com {{3}}? Avalie em 10 segundos: {{4}}\n\n{{5}}");
+        MODELOS.put("sinal_pendente", "{{1}}, seu horário de {{2}} às {{3}} está reservado! 💈\n\nPra garantir, falta o sinal de {{4}} via Pix — ele é descontado no dia. Pague até {{5}}:\n{{6}}");
+        MODELOS.put("vaga_liberada", "Boa notícia, {{1}}! 💈 Abriu um horário {{2}} às {{3}} na {{4}} — você estava na lista de espera.\n\nQuem agendar primeiro leva: {{5}}");
+        MODELOS.put("aniversario_cliente", "Feliz aniversário, {{1}}! 🎉💈\n\nPra comemorar, seu próximo atendimento tem {{2}} de desconto com o cupom {{3}} (válido até {{4}}).\n\nAgende: {{5}}");
+        MODELOS.put("retorno_cliente", "{{1}}, já faz {{2}} dias do seu último corte ✂️ Bora dar um tapa no visual?\n\n{{3}}\n\nAgende em 1 minuto: {{4}}");
+    }
+
+    /** Categoria de cada modelo na Meta (Marketing tem regra propria de consentimento e custa mais). */
+    public static final Map<String, String> CATEGORIAS = new LinkedHashMap<>();
+    static {
+        MODELOS.keySet().forEach(k -> CATEGORIAS.put(k, "Utilidade"));
+        CATEGORIAS.put("aniversario_cliente", "Marketing");
+        CATEGORIAS.put("retorno_cliente", "Marketing");
     }
 
     /** Modelos com botoes de resposta rapida: cadastrar na Meta com esses textos, nessa ordem. */
@@ -129,11 +148,95 @@ public class MensagemFactory {
                         List.<String[]>of(botao("⭐ Avaliar atendimento", linkHorario)),
                         "avaliacao_atendimento", List.of(nome, servico, barbeiro, linkHorario, cartela.isEmpty() ? "Até a próxima! 💈" : umaLinha(cartela)));
             }
+            case SINAL_PENDENTE -> {
+                String sinal = moeda(a.getSinalValor());
+                String prazo = a.getSinalExpiraEm() == null ? "o horário"
+                        : a.getSinalExpiraEm().toLocalDate().equals(a.getCriadoEm().toLocalDate())
+                        ? "hoje às " + a.getSinalExpiraEm().format(Textos.HORA)
+                        : DateTimeFormatter.ofPattern("dd/MM 'às' HH:mm").format(a.getSinalExpiraEm());
+                Map<String, String> d = detalhes(dia, hora, servico, barbeiro, unidade, endereco, valor, a.getCodigo());
+                d.put("Sinal", sinal + " via Pix, até " + prazo);
+                yield montar(a, tipo, "💈 Falta o sinal pra garantir seu horário de " + dia,
+                        "Seu horário está reservado, " + nome + "!",
+                        "Pra garantir a cadeira falta o sinal de " + sinal + " via Pix — ele é descontado do valor no dia. "
+                                + "Abra o link, copie o código Pix e pague no app do seu banco.",
+                        d, List.<String[]>of(botao("💠 Pagar o sinal com Pix", linkHorario)),
+                        "sinal_pendente", List.of(nome, dia, hora, sinal, prazo, linkHorario));
+            }
+            case VAGA_LIBERADA, ANIVERSARIO, RETORNO ->
+                    throw new IllegalArgumentException(tipo + " não é mensagem de um horário do próprio cliente");
         };
     }
 
+    /** Aviso pra quem estava na lista de espera: abriu um horario no dia que ele queria. */
+    public Mensagem vagaLiberada(ListaEspera e, LocalDateTime inicio, Barbeiro barbeiroLivre) {
+        Cliente c = e.getCliente();
+        String nome = primeiroNome(c.getNome());
+        String dia = DIA.format(inicio);
+        String quando = inicio.toLocalDate().equals(LocalDate.now()) ? "hoje" : inicio.toLocalDate().equals(LocalDate.now().plusDays(1)) ? "amanhã" : dia;
+        String hora = inicio.format(Textos.HORA);
+        String unidade = e.getUnidade().getNome().replace("Rede Barbearias — ", "Rede Barbearias ");
+        String link = siteUrl + "/#/agendar?unidade=" + e.getUnidade().getId() + "&servico=" + e.getServico().getId()
+                + "&data=" + inicio.toLocalDate() + (e.getBarbeiro() != null ? "&barbeiro=" + e.getBarbeiro().getId() : "");
+        Map<String, String> d = new LinkedHashMap<>();
+        d.put("Quando", capitalizar(dia) + " às " + hora);
+        d.put("Serviço", e.getServico().getNome());
+        if (barbeiroLivre != null) d.put("Barbeiro", barbeiroLivre.getApelido() != null ? barbeiroLivre.getApelido() : primeiroNome(barbeiroLivre.getNome()));
+        d.put("Onde", unidade);
+        return montarPara(c, e.getUnidade(), null, TipoNotificacao.VAGA_LIBERADA,
+                "💈 Abriu um horário " + quando + " às " + hora + "!",
+                "Boa notícia, " + nome + ": abriu um horário!",
+                "Você estava na lista de espera e alguém acabou de desmarcar. Quem agendar primeiro leva — corre!",
+                d, List.<String[]>of(botao("Agendar agora", link)),
+                "vaga_liberada", List.of(nome, quando, hora, unidade, link),
+                "Você recebeu esta mensagem porque entrou na lista de espera.");
+    }
+
+    public Mensagem aniversario(Cliente c, Cupom cp) {
+        String nome = primeiroNome(c.getNome());
+        String desconto = percentual(cp.getPercentual());
+        String validade = cp.getValidoAte().format(Textos.DATA);
+        Map<String, String> d = new LinkedHashMap<>();
+        d.put("Cupom", cp.getCodigo());
+        d.put("Desconto", desconto);
+        d.put("Válido até", validade);
+        return montarPara(c, c.getUnidadePreferida(), null, TipoNotificacao.ANIVERSARIO,
+                "🎉 Feliz aniversário, " + nome + "! Tem presente aqui",
+                "Feliz aniversário, " + nome + "! 🎉",
+                "Pra comemorar, seu próximo atendimento tem " + desconto + " de desconto. É só usar o cupom abaixo ao agendar.",
+                d, List.<String[]>of(botao("Agendar com desconto", siteUrl + "/#/agendar")),
+                "aniversario_cliente", List.of(nome, desconto, cp.getCodigo(), validade, siteUrl + "/#/agendar"),
+                RODAPE_MARKETING);
+    }
+
+    public Mensagem retorno(Cliente c, long dias, Cupom cp) {
+        String nome = primeiroNome(c.getNome());
+        String oferta = cp == null ? "Tem horário livre essa semana — escolhe o seu 😉"
+                : "Use o cupom " + cp.getCodigo() + " e ganhe " + percentual(cp.getPercentual()) + " de desconto (até " + cp.getValidoAte().format(Textos.DATA) + ").";
+        Map<String, String> d = new LinkedHashMap<>();
+        d.put("Última visita", "há " + dias + " dias");
+        if (cp != null) d.put("Cupom", cp.getCodigo() + " · " + percentual(cp.getPercentual()));
+        return montarPara(c, c.getUnidadePreferida(), null, TipoNotificacao.RETORNO,
+                "✂️ " + nome + ", bora dar um tapa no visual?",
+                "Já faz " + dias + " dias, " + nome + "!",
+                "Seu último corte já tem " + dias + " dias. " + oferta,
+                d, List.<String[]>of(botao("Agendar meu horário", siteUrl + "/#/agendar")),
+                "retorno_cliente", List.of(nome, String.valueOf(dias), oferta, siteUrl + "/#/agendar"),
+                RODAPE_MARKETING);
+    }
+
+    private static final String RODAPE_MARKETING = "Você recebeu porque aceitou receber novidades da barbearia. Pra não receber mais, responda PARAR no WhatsApp.";
+
     private Mensagem montar(Agendamento a, TipoNotificacao tipo, String assunto, String titulo, String intro,
                             Map<String, String> detalhes, List<String[]> botoes, String modelo, List<String> params) {
+        return montarPara(a.getCliente(), a.getUnidade(), a.getCodigo(), tipo, assunto, titulo, intro, detalhes, botoes, modelo, params,
+                "Você recebeu este e-mail porque agendou um horário com a gente.");
+    }
+
+    /** codigoBotoes: codigo do horario que os botoes Confirmo/Cancelar do modelo vao carregar (null = sem botoes). */
+    private Mensagem montarPara(Cliente c, Unidade un, String codigoBotoes, TipoNotificacao tipo, String assunto, String titulo,
+                                String intro, Map<String, String> detalhes, List<String[]> botoes, String modelo, List<String> params,
+                                String porQueRecebeu) {
         StringBuilder html = new StringBuilder();
         html.append("<!doctype html><html><body style=\"margin:0;background:#f2ead9;font-family:Arial,Helvetica,sans-serif;color:#2a2118\">")
             .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#f2ead9;padding:24px 12px\"><tr><td align=\"center\">")
@@ -152,18 +255,23 @@ public class MensagemFactory {
             html.append("<a href=\"").append(esc(b[1])).append("\" style=\"display:inline-block;margin:0 8px 10px 0;background:#c0392b;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:999px;font-weight:bold;font-size:14px\">")
                 .append(esc(b[0])).append("</a>");
         }
-        html.append("<p style=\"margin:18px 0 0;font-size:12px;color:#8a7f72\">").append(esc(a.getUnidade().getNome()))
-            .append(a.getUnidade().getTelefone() != null ? " · " + esc(a.getUnidade().getTelefone()) : "")
-            .append("<br>Você recebeu este e-mail porque agendou um horário com a gente.</p>")
+        html.append("<p style=\"margin:18px 0 0;font-size:12px;color:#8a7f72\">").append(esc(un != null ? un.getNome() : "Rede Barbearias"))
+            .append(un != null && un.getTelefone() != null ? " · " + esc(un.getTelefone()) : "")
+            .append("<br>").append(esc(porQueRecebeu))
+            .append("<br><a href=\"").append(esc(siteUrl + "/#/privacidade")).append("\" style=\"color:#8a7f72\">Política de privacidade</a></p>")
             .append("</td></tr></table></td></tr></table></body></html>");
 
-        List<String> payloads = BOTOES.containsKey(modelo) ? List.of(CONFIRMAR + a.getCodigo(), CANCELAR + a.getCodigo()) : List.of();
+        List<String> payloads = BOTOES.containsKey(modelo) && codigoBotoes != null ? List.of(CONFIRMAR + codigoBotoes, CANCELAR + codigoBotoes) : List.of();
         StringBuilder texto = new StringBuilder(titulo).append("\n\n").append(intro).append("\n\n");
         detalhes.forEach((k, v) -> texto.append(k).append(": ").append(v).append("\n"));
         for (String[] b : botoes) texto.append("\n").append(b[0]).append(": ").append(b[1]);
 
-        return new Mensagem(tipo, a.getCliente().getNome(), a.getCliente().getEmail(), a.getCliente().getTelefone(),
-                assunto, html.toString(), texto.toString(), modelo, params, payloads, a.getCliente().isWhatsappBloqueado());
+        return new Mensagem(tipo, c.getNome(), c.getEmail(), c.getTelefone(),
+                assunto, html.toString(), texto.toString(), modelo, params, payloads, c.isWhatsappBloqueado());
+    }
+
+    private static String percentual(BigDecimal p) {
+        return p.stripTrailingZeros().toPlainString().replace('.', ',') + "%";
     }
 
     private static Map<String, String> detalhes(String dia, String hora, String servico, String barbeiro,

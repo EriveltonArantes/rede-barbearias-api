@@ -29,6 +29,7 @@ public class MinhaContaController {
 
     private final ClienteService clientes;
     private final AgendamentoService agenda;
+    private final com.redebarbeariasapi.service.PrivacidadeService privacidade;
 
     @GetMapping
     public ClienteFichaDTO ficha() {
@@ -77,4 +78,22 @@ public class MinhaContaController {
     }
 
     public record MotivoOpcional(String motivo) {}
+
+    /** LGPD: tudo que a barbearia guarda sobre mim (baixa como arquivo). */
+    @GetMapping("/meus-dados")
+    public ResponseEntity<java.util.Map<String, Object>> meusDados() {
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=meus-dados.json")
+                .body(privacidade.exportar(Sessao.atual().clienteId()));
+    }
+
+    /** LGPD: exclusao dos dados. Pede a palavra EXCLUIR pra nao acontecer por engano. */
+    @PostMapping("/excluir-conta")
+    public java.util.Map<String, String> excluirConta(@RequestBody java.util.Map<String, String> corpo) {
+        if (!"EXCLUIR".equalsIgnoreCase(String.valueOf(corpo.get("confirmacao")).trim())) {
+            throw new com.redebarbeariasapi.exception.ValidacaoException("Digite EXCLUIR pra confirmar.");
+        }
+        privacidade.anonimizar(Sessao.atual().clienteId(), "o próprio cliente");
+        return java.util.Map.of("mensagem", "Seus dados foram excluídos. Obrigado por ter sido nosso cliente 💈");
+    }
 }

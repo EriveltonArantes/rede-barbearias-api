@@ -11,6 +11,9 @@ import com.redebarbeariasapi.repository.*;
 import com.redebarbeariasapi.security.Sessao;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import com.redebarbeariasapi.espera.HorarioLiberadoEvento;
+import com.redebarbeariasapi.pagamento.SinalService;
+import com.redebarbeariasapi.repository.ListaEsperaRepository;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -49,6 +52,8 @@ public class AgendamentoService {
     private final AuditoriaService auditoria;
     private final NotificacaoRepository notificacoes;
     private final ApplicationEventPublisher eventos;
+    private final SinalService sinal;
+    private final ListaEsperaRepository listaEspera;
 
     @Value("${app.agenda.intervalo-minutos:15}")
     private int intervaloMinutos;
@@ -178,7 +183,7 @@ public class AgendamentoService {
         Unidade u = unidades.findById(dto.unidadeId()).orElseThrow(() -> ResourceNotFoundException.de("Unidade", dto.unidadeId()));
         if (!u.isAtiva()) throw new BusinessException("Essa unidade não está recebendo agendamentos.");
         Servico s = servicoAtivo(dto.servicoId());
-        Cliente c = clienteFixo != null ? clienteFixo : clienteService.obterOuCriar(dto.nome(), dto.telefone(), dto.email());
+        Cliente c = clienteFixo != null ? clienteFixo : clienteService.obterOuCriar(dto.nome(), dto.telefone(), dto.email(), dto.aceitaMarketing());
 
         LocalDateTime inicio = normalizar(dto.inicio());
         LocalDateTime fim = inicio.plusMinutes(s.getDuracaoMinutos());
@@ -194,7 +199,9 @@ public class AgendamentoService {
         if (abertosDoCliente >= 3) {
             throw new BusinessException("Você já tem 3 horários marcados. Compareça ou cancele um antes de marcar outro.");
         }
-        return novo(b, s, c, inicio, origem, dto.observacao(), dto.cupom(), false);
+        Agendamento a = novo(b, s, c, inicio, origem, dto.observacao(), dto.cupom(), false);
+        sinal.aplicar(a);
+        return a;
     }
 
     /** "Sem preferencia": o barbeiro livre com menos atendimentos no dia (distribui a agenda). */
@@ -240,6 +247,9 @@ public class AgendamentoService {
             cp.setUsos(cp.getUsos() + 1);
         }
         repo.save(a);
+        listaEspera.findByClienteIdAndStatusIn(c.getId(), List.of(ListaEspera.Status.AGUARDANDO, ListaEspera.Status.AVISADO)).stream()
+                .filter(e -> e.getUnidade().getId().equals(a.getUnidade().getId()) && e.getData().equals(inicio.toLocalDate()))
+                .forEach(e -> e.setStatus(ListaEspera.Status.AGENDOU));
         eventos.publishEvent(new AgendamentoEvento(a.getId(), TipoNotificacao.CONFIRMACAO));
         auditoria.registrar("AGENDAR", "Agendamento", a.getId(), c.getNome() + " com " + b.getNome() + " em "
                 + inicio.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM HH:mm")) + " (" + origem + ")");
@@ -366,6 +376,7 @@ public class AgendamentoService {
         if (novo == StatusAgendamento.CANCELADO) {
             cancelar(a, Textos.vazio(dto.motivo()) ? "Cancelado pela equipe" : dto.motivo());
         } else {
+            if (novo == StatusAgendamento.NAO_COMPARECEU) sinal.aoFaltar(a);
             a.setStatus(novo);
             a.setAtualizadoEm(LocalDateTime.now());
             auditoria.registrar("STATUS", "Agendamento", id, novo.name());
@@ -373,12 +384,17 @@ public class AgendamentoService {
         return AgendamentoMapper.toResponse(a, null);
     }
 
+    /** Cancelamento pela equipe (sinal pago volta pro cliente). */
     private void cancelar(Agendamento a, String motivo) {
-        cancelar(a, motivo, true);
+        cancelar(a, motivo, true, false);
     }
 
-    /** avisarCliente=false quando o proprio cliente cancelou por uma conversa que ja responde na hora (WhatsApp). */
-    private void cancelar(Agendamento a, String motivo, boolean avisarCliente) {
+    /**
+     * avisarCliente=false quando o proprio cliente cancelou por uma conversa que ja responde na hora (WhatsApp).
+     * peloCliente decide o sinal: cancelou em cima da hora, fica retido.
+     */
+    private void cancelar(Agendamento a, String motivo, boolean avisarCliente, boolean peloCliente) {
+        sinal.aoCancelar(a, peloCliente);
         a.setStatus(StatusAgendamento.CANCELADO);
         a.setMotivoCancelamento(motivo);
         a.setAtualizadoEm(LocalDateTime.now());
@@ -386,7 +402,43 @@ public class AgendamentoService {
             cupons.findByCodigoIgnoreCase(a.getCupomCodigo()).ifPresent(cp -> cp.setUsos(Math.max(0, cp.getUsos() - 1)));
         }
         if (avisarCliente) eventos.publishEvent(new AgendamentoEvento(a.getId(), TipoNotificacao.CANCELAMENTO));
+        // horario livre de novo: avisa quem estava na lista de espera desse dia
+        if (a.getInicio().isAfter(LocalDateTime.now())) eventos.publishEvent(new HorarioLiberadoEvento(a.getId()));
         auditoria.registrar("CANCELAR", "Agendamento", a.getId(), motivo);
+    }
+
+    /** Sinal nao pago no prazo (rotina automatica, quando a rede liga essa opcao). */
+    public void cancelarSemSinal(Agendamento a) {
+        if (a.getStatus().finalizado() || a.getSinalSituacao() != SituacaoSinal.PENDENTE) return;
+        cancelar(a, "Sinal não pago no prazo", true, true);
+    }
+
+    /** Cliente pediu exclusao dos dados (LGPD): cancela o que estava marcado sem regra de antecedencia. */
+    public void cancelarPorExclusaoDeDados(Agendamento a) {
+        if (a.getStatus().finalizado()) return;
+        cancelar(a, "Cliente pediu a exclusão dos dados (LGPD)", false, false);
+    }
+
+    /** Sinais numa situacao (pendentes pra conferir, a devolver...), no escopo da unidade do usuario. */
+    @Transactional(readOnly = true)
+    public List<AgendamentoResponseDTO> sinais(SituacaoSinal situacao, Long unidadeId) {
+        Long un = Sessao.unidadeEscopo(unidadeId);
+        return repo.findBySinalSituacaoOrderByInicio(situacao).stream()
+                .filter(a -> un == null || a.getUnidade().getId().equals(un))
+                .map(a -> AgendamentoMapper.toResponse(a, null)).toList();
+    }
+
+    /** Recepcao conferiu o Pix do sinal no banco / devolveu / decidiu reter. */
+    public AgendamentoResponseDTO sinal(Long id, String acao) {
+        Agendamento a = obter(id);
+        exigirAcesso(a);
+        switch (acao == null ? "" : acao.toUpperCase()) {
+            case "RECEBIDO" -> sinal.confirmar(a, "recepção: " + Sessao.username());
+            case "DEVOLVIDO" -> sinal.marcarDevolvido(a);
+            case "RETER" -> sinal.reter(a);
+            default -> throw new ValidacaoException("Ação do sinal inválida: use RECEBIDO, DEVOLVIDO ou RETER.");
+        }
+        return AgendamentoMapper.toResponse(a, null);
     }
 
     /**
@@ -411,7 +463,7 @@ public class AgendamentoService {
     public void cancelarPeloWhatsApp(Agendamento a) {
         if (a.getStatus().finalizado()) throw new BusinessException("Esse agendamento já está " + a.getStatus() + ".");
         boolean tardio = !podeCancelar(a);
-        cancelar(a, "Cliente pelo WhatsApp" + (tardio ? " (menos de " + antecedenciaCancelamentoHoras + "h antes)" : ""), false);
+        cancelar(a, "Cliente pelo WhatsApp" + (tardio ? " (menos de " + antecedenciaCancelamentoHoras + "h antes)" : ""), false, true);
     }
 
     /** Fecha o atendimento: cobra (ou usa clube/fidelidade), calcula comissao e pontua o cliente. */
@@ -454,10 +506,15 @@ public class AgendamentoService {
             cobrado = aPagar.subtract(descontoExtra);
         }
 
+        // sinal pago antes entra como parte do pagamento (no clube/cortesia ele volta pro cliente)
+        boolean pagoNoDia = forma != FormaPagamento.ASSINATURA && forma != FormaPagamento.CORTESIA;
+        BigDecimal recebido = pagoNoDia ? cobrado.add(a.sinalAbativel()) : cobrado;
+        sinal.aoFinalizar(a, pagoNoDia);
+
         // comissao sobre o valor cobrado; atendimento do clube/cortesia paga comissao sobre o preco de tabela
-        BigDecimal base = cobrado.signum() > 0 ? cobrado : a.getValor();
+        BigDecimal base = recebido.signum() > 0 ? recebido : a.getValor();
         a.setComissaoValor(Textos.percentual(base, a.getBarbeiro().getComissaoServico()));
-        a.setValorFinal(Textos.dinheiro(cobrado));
+        a.setValorFinal(Textos.dinheiro(recebido));
         a.setFormaPagamento(forma);
         a.setPago(true);
         a.setPagoEm(LocalDateTime.now());
@@ -528,7 +585,7 @@ public class AgendamentoService {
             throw new BusinessException("Cancelamento online só até " + antecedenciaCancelamentoHoras
                     + "h antes. Fale com a unidade pelo WhatsApp.");
         }
-        cancelar(a, "Cliente: " + (Textos.vazio(motivo) ? "sem motivo informado" : motivo));
+        cancelar(a, "Cliente: " + (Textos.vazio(motivo) ? "sem motivo informado" : motivo), true, true);
     }
 
     public Avaliacao avaliar(Agendamento a, AvaliacaoRequestDTO dto) {

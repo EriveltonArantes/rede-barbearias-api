@@ -57,6 +57,10 @@ class NotificacaoTest {
         }
     }
 
+    /** Mensagens que saem de um horario do proprio cliente (as outras tem metodo proprio na fabrica). */
+    static final java.util.List<TipoNotificacao> DO_HORARIO = java.util.Arrays.stream(TipoNotificacao.values())
+            .filter(t -> t != TipoNotificacao.VAGA_LIBERADA && t != TipoNotificacao.ANIVERSARIO && t != TipoNotificacao.RETORNO).toList();
+
     @Autowired MockMvc mvc;
     @Autowired NotificacaoService notificacoes;
     @Autowired NotificacaoRepository historico;
@@ -225,7 +229,10 @@ class NotificacaoTest {
         assertThat(f.criar(a, TipoNotificacao.LEMBRETE_PROXIMO).botoesWhatsApp()).hasSize(2);
         assertThat(f.criar(a, TipoNotificacao.CONFIRMACAO).botoesWhatsApp()).isEmpty();
         // o botao tem que existir no modelo cadastrado na Meta, na mesma quantidade
-        for (TipoNotificacao t : TipoNotificacao.values()) {
+        a.setSinalValor(new BigDecimal("10.00"));
+        a.setSinalSituacao(SituacaoSinal.PENDENTE);
+        a.setSinalExpiraEm(LocalDateTime.now().plusHours(1));
+        for (TipoNotificacao t : DO_HORARIO) {
             Mensagem m = f.criar(a, t);
             assertThat(MensagemFactory.BOTOES.getOrDefault(m.modeloWhatsApp(), List.of())).hasSameSizeAs(m.botoesWhatsApp());
         }
@@ -270,7 +277,10 @@ class NotificacaoTest {
         Agendamento a = marcadoOntem("31966660005", null, LocalDate.now().plusDays(5).atTime(10, 0));
         MensagemFactory f = new MensagemFactory("https://site.teste", 10);
         Pattern p = Pattern.compile("\\{\\{(\\d+)}}");
-        for (TipoNotificacao tipo : TipoNotificacao.values()) {
+        a.setSinalValor(new BigDecimal("10.00"));
+        a.setSinalSituacao(SituacaoSinal.PENDENTE);
+        a.setSinalExpiraEm(LocalDateTime.now().plusHours(1));
+        for (TipoNotificacao tipo : DO_HORARIO) {
             Mensagem m = f.criar(a, tipo);
             String modelo = MensagemFactory.MODELOS.get(m.modeloWhatsApp());
             assertThat(modelo).as("modelo %s cadastrado", m.modeloWhatsApp()).isNotNull();

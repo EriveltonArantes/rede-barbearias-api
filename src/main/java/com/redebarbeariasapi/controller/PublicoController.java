@@ -36,6 +36,9 @@ public class PublicoController {
     private final CupomService cupons;
     private final AvaliacaoService avaliacoes;
     private final RateLimiter rateLimiter;
+    private final com.redebarbeariasapi.pagamento.SinalService sinal;
+    private final com.redebarbeariasapi.espera.ListaEsperaService listaEspera;
+    private final com.redebarbeariasapi.service.ConfiguracaoRedeService configuracao;
 
     @GetMapping("/unidades")
     public List<UnidadeResponseDTO> unidades() {
@@ -129,5 +132,27 @@ public class PublicoController {
         Agendamento a = agenda.porCodigo(codigo);
         agenda.avaliar(a, dto);
         return agenda.publico(a);
+    }
+
+    @Operation(summary = "Pix pra pagar o sinal do horário (copia e cola + QR Code)")
+    @GetMapping("/agendamentos/{codigo}/sinal")
+    @Transactional(readOnly = true)
+    public com.redebarbeariasapi.dto.PixResponseDTO pixDoSinal(@PathVariable String codigo, HttpServletRequest req) {
+        rateLimiter.verificar("sinal", req);
+        return sinal.pix(agenda.porCodigo(codigo));
+    }
+
+    @Operation(summary = "Entrar na lista de espera de um dia lotado")
+    @PostMapping("/lista-espera")
+    public ResponseEntity<java.util.Map<String, Object>> entrarNaEspera(@RequestBody com.redebarbeariasapi.espera.ListaEsperaService.Entrada dto,
+                                                                        HttpServletRequest req) {
+        rateLimiter.verificar("espera", req);
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED).body(listaEspera.entrar(dto, null));
+    }
+
+    @Operation(summary = "Regras que o site mostra: sinal, lista de espera, contato de privacidade")
+    @GetMapping("/politicas")
+    public java.util.Map<String, Object> politicas() {
+        return configuracao.publico();
     }
 }

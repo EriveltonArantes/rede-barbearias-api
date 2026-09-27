@@ -22,6 +22,7 @@ import java.util.List;
 public class ClienteController {
 
     private final ClienteService service;
+    private final com.redebarbeariasapi.service.PrivacidadeService privacidade;
 
     @GetMapping
     public List<ClienteResponseDTO> listar(@RequestParam(required = false) String q) {
@@ -55,5 +56,20 @@ public class ClienteController {
     public ResponseEntity<Void> excluir(@PathVariable Long id) {
         service.excluir(id);
         return ResponseEntity.noContent().build();
+    }
+
+    /** LGPD: cliente pediu os dados pelo balcao/WhatsApp. */
+    @PreAuthorize("hasAnyRole('ADMIN','GERENTE')")
+    @GetMapping("/{id}/dados-pessoais")
+    public java.util.Map<String, Object> dadosPessoais(@PathVariable Long id) {
+        return privacidade.exportar(id);
+    }
+
+    /** LGPD: cliente pediu a exclusao pelo balcao/WhatsApp. */
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/{id}/anonimizar")
+    public java.util.Map<String, String> anonimizar(@PathVariable Long id) {
+        privacidade.anonimizar(id, "admin " + com.redebarbeariasapi.security.Sessao.username());
+        return java.util.Map.of("mensagem", "Dados do cliente anonimizados.");
     }
 }

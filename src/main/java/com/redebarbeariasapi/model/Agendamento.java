@@ -70,12 +70,37 @@ public class Agendamento {
     private String motivoCancelamento;
     private boolean lembreteEnviado;
 
+    // ---------------- sinal por Pix ----------------
+    @Column(precision = 10, scale = 2)
+    private BigDecimal sinalValor;
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private SituacaoSinal sinalSituacao;
+    private LocalDateTime sinalExpiraEm;
+    private LocalDateTime sinalPagoEm;
+    /** Id do pagamento no gateway (Mercado Pago) quando a confirmacao e automatica. */
+    @Column(length = 60)
+    private String sinalGatewayId;
+    /** Pix copia-e-cola gerado pelo gateway (o estatico e calculado na hora). */
+    @Column(length = 800)
+    private String sinalPixCopiaECola;
+
     @Column(nullable = false)
     private LocalDateTime criadoEm = LocalDateTime.now();
     private LocalDateTime atualizadoEm;
 
     /** Valor que vale pra cobranca: preco de tabela menos desconto do cupom. */
     public BigDecimal valorAPagar() {
-        return valor.subtract(desconto == null ? BigDecimal.ZERO : desconto).max(BigDecimal.ZERO);
+        return valor.subtract(desconto == null ? BigDecimal.ZERO : desconto).subtract(sinalAbativel()).max(BigDecimal.ZERO);
+    }
+
+    /** Sinal ja pago que entra como parte do pagamento no dia. */
+    public BigDecimal sinalAbativel() {
+        return sinalValor != null && (sinalSituacao == SituacaoSinal.PAGO || sinalSituacao == SituacaoSinal.ABATIDO)
+                ? sinalValor : BigDecimal.ZERO;
+    }
+
+    public boolean aguardandoSinal() {
+        return sinalSituacao == SituacaoSinal.PENDENTE;
     }
 }

@@ -2,6 +2,7 @@ package com.redebarbeariasapi.dto;
 
 import com.redebarbeariasapi.model.FormaPagamento;
 import com.redebarbeariasapi.model.OrigemAgendamento;
+import com.redebarbeariasapi.model.SituacaoSinal;
 import com.redebarbeariasapi.model.StatusAgendamento;
 
 import java.math.BigDecimal;
@@ -18,5 +19,8 @@ public record AgendamentoResponseDTO(
         BigDecimal valor, BigDecimal desconto, BigDecimal valorAPagar, BigDecimal valorFinal,
         String cupomCodigo, FormaPagamento formaPagamento, boolean pago, LocalDateTime pagoEm,
         BigDecimal comissaoValor, String observacao, String motivoCancelamento,
-        boolean lembreteEnviado, Integer nota, LocalDateTime criadoEm) {
+        boolean lembreteEnviado, Integer nota, LocalDateTime criadoEm,
+        BigDecimal sinalValor, SituacaoSinal sinalSituacao, LocalDateTime sinalExpiraEm, LocalDateTime sinalPagoEm,
+        /** true = o gateway confirma o Pix sozinho; false = a recepcao confere no banco. */
+        boolean sinalAutomatico) {
 }

@@ -55,6 +55,7 @@ public class NotificacaoController {
         r.put("canais", service.statusCanais());
         r.put("modelosWhatsApp", MensagemFactory.MODELOS);
         r.put("botoesWhatsApp", MensagemFactory.BOTOES);
+        r.put("categoriasWhatsApp", MensagemFactory.CATEGORIAS);
         r.put("rodapeWhatsApp", MensagemFactory.RODAPE);
         Map<String, Object> horarios = new LinkedHashMap<>();
         horarios.put("horaLembrete", service.horaLembrete());

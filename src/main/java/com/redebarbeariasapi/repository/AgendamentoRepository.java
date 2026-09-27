@@ -1,6 +1,7 @@
 package com.redebarbeariasapi.repository;
 
 import com.redebarbeariasapi.model.Agendamento;
+import com.redebarbeariasapi.model.SituacaoSinal;
 import com.redebarbeariasapi.model.StatusAgendamento;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -51,6 +52,21 @@ public interface AgendamentoRepository extends JpaRepository<Agendamento, Long> 
                                      @Param("unidadeId") Long unidadeId);
 
     List<Agendamento> findByClienteIdOrderByInicioDesc(Long clienteId);
+
+    /** Faltas sem aviso do cliente desde uma data (regra do sinal). */
+    long countByClienteIdAndStatusAndInicioAfter(Long clienteId, StatusAgendamento status, LocalDateTime desde);
+
+    List<Agendamento> findBySinalSituacaoOrderByInicio(SituacaoSinal situacao);
+
+    /** Sinais que ficaram com a barbearia (falta / cancelamento em cima da hora): receita do periodo. */
+    @Query("select a from Agendamento a where a.sinalSituacao = com.redebarbeariasapi.model.SituacaoSinal.RETIDO " +
+           "and a.sinalPagoEm >= :de and a.sinalPagoEm < :ate and (:unidadeId is null or a.unidade.id = :unidadeId)")
+    List<Agendamento> sinaisRetidos(@Param("de") LocalDateTime de, @Param("ate") LocalDateTime ate, @Param("unidadeId") Long unidadeId);
+
+    /** Algum horario em aberto daqui pra frente (nao manda "bora voltar?" pra quem ja marcou). */
+    @Query("select count(a) > 0 from Agendamento a where a.cliente.id = :clienteId and a.inicio > :agora " +
+           "and a.status in (com.redebarbeariasapi.model.StatusAgendamento.AGENDADO, com.redebarbeariasapi.model.StatusAgendamento.CONFIRMADO)")
+    boolean temHorarioFuturo(@Param("clienteId") Long clienteId, @Param("agora") LocalDateTime agora);
     long countByBarbeiroId(Long barbeiroId);
     long countByServicoId(Long servicoId);
     long countByUnidadeId(Long unidadeId);

@@ -17,7 +17,8 @@ public final class AgendamentoMapper {
                 a.getValor(), a.getDesconto(), a.valorAPagar(), a.getValorFinal(),
                 a.getCupomCodigo(), a.getFormaPagamento(), a.isPago(), a.getPagoEm(),
                 a.getComissaoValor(), a.getObservacao(), a.getMotivoCancelamento(),
-                a.isLembreteEnviado(), nota, a.getCriadoEm());
+                a.isLembreteEnviado(), nota, a.getCriadoEm(),
+                a.getSinalValor(), a.getSinalSituacao(), a.getSinalExpiraEm(), a.getSinalPagoEm(), a.getSinalGatewayId() != null);
     }
 
     public static AgendamentoPublicoResponseDTO toPublico(Agendamento a, boolean podeCancelar, boolean podeAvaliar, Integer nota) {
@@ -26,6 +27,7 @@ public final class AgendamentoMapper {
                 a.getUnidade().getNome(), a.getUnidade().getEndereco(), a.getUnidade().getWhatsapp(),
                 a.getBarbeiro().getNome(), a.getServico().getNome(), a.getServico().getDuracaoMinutos(),
                 a.getInicio(), a.getFim(), a.getValor(), a.getDesconto(), a.valorAPagar(),
-                podeCancelar, podeAvaliar, nota);
+                podeCancelar, podeAvaliar, nota,
+                a.getSinalValor(), a.getSinalSituacao(), a.getSinalExpiraEm());
     }
 }

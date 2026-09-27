@@ -50,7 +50,10 @@ public class FinanceiroService {
         BigDecimal servicos = soma(m.atendimentos().stream().map(Agendamento::getValorFinal));
         BigDecimal produtos = soma(m.vendas().stream().map(Venda::getTotal));
         BigDecimal clube = soma(m.mensalidades().stream().map(PagamentoAssinatura::getValor));
-        BigDecimal receita = servicos.add(produtos).add(clube);
+        // sinal de quem faltou / cancelou em cima da hora fica com a barbearia: entra como receita no dia do Pix
+        BigDecimal sinais = soma(agendamentos.sinaisRetidos(de.atStartOfDay(), ate.plusDays(1).atStartOfDay(), un).stream()
+                .map(Agendamento::getSinalValor));
+        BigDecimal receita = servicos.add(produtos).add(clube).add(sinais);
         BigDecimal custoProdutos = soma(m.vendas().stream().flatMap(v -> v.getItens().stream())
                 .map(i -> Textos.zeroSeNulo(i.getProduto().getPrecoCusto()).multiply(BigDecimal.valueOf(i.getQuantidade()))));
         BigDecimal comissoes = soma(m.atendimentos().stream().map(Agendamento::getComissaoValor))
@@ -70,6 +73,7 @@ public class FinanceiroService {
         r.put("receitaServicos", Textos.dinheiro(servicos));
         r.put("receitaProdutos", Textos.dinheiro(produtos));
         r.put("receitaClube", Textos.dinheiro(clube));
+        r.put("receitaSinaisRetidos", Textos.dinheiro(sinais));
         r.put("custoProdutos", Textos.dinheiro(custoProdutos));
         r.put("comissoes", Textos.dinheiro(comissoes));
         r.put("descontosConcedidos", Textos.dinheiro(descontos));

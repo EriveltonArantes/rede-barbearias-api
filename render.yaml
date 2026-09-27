@@ -29,3 +29,9 @@ services:
         sync: false
       - key: WHATSAPP_APP_SECRET
         sync: false
+      # Sinal por Pix com confirmacao automatica (opcional)
+      - key: MERCADOPAGO_ACCESS_TOKEN
+        sync: false
+      # Endereco do site usado nos links das mensagens (troque ao usar dominio proprio)
+      - key: SITE_URL
+        value: https://rede-barbearias-api-frontend.vercel.app

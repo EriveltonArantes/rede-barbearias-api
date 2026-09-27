@@ -16,9 +16,14 @@ public class Notificacao {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(optional = false)
+    /** Horario a que a mensagem se refere (null nas mensagens de relacionamento: aniversario, retorno). */
+    @ManyToOne
     @JoinColumn(name = "agendamento_id")
     private Agendamento agendamento;
+    /** Quem recebeu (nas mensagens de agendamento e o cliente do horario; na lista de espera, quem esperava). */
+    @ManyToOne
+    @JoinColumn(name = "cliente_id")
+    private Cliente cliente;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

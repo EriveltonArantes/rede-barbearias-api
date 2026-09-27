@@ -14,5 +14,7 @@ public record AgendamentoPublicoRequestDTO(
         @NotBlank(message = "é obrigatório") String telefone,
         @Email(message = "inválido") String email,
         String cupom,
-        @Size(max = 500) String observacao) {
+        @Size(max = 500) String observacao,
+        /** Caixinha "quero receber promocoes" (LGPD): null quando o formulario nao perguntou. */
+        Boolean aceitaMarketing) {
 }

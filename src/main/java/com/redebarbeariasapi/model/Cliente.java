@@ -39,6 +39,8 @@ public class Cliente {
     /** Respondeu PARAR no WhatsApp: nao recebe mais mensagem automatica por la (e-mail continua). */
     @Column(nullable = false, columnDefinition = "boolean default false")
     private boolean whatsappBloqueado;
+    /** Pediu exclusao dos dados (LGPD): o cadastro vira anonimo, o historico financeiro fica. */
+    private LocalDateTime anonimizadoEm;
 
     @Column(nullable = false)
     private LocalDateTime criadoEm = LocalDateTime.now();

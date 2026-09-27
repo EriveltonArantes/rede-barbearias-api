@@ -11,5 +11,13 @@ public enum TipoNotificacao {
     REAGENDAMENTO,
     CANCELAMENTO,
     /** Depois do atendimento pago: pede a avaliacao pelo link e mostra a cartela de fidelidade. */
-    AVALIACAO
+    AVALIACAO,
+    /** Agendou online num caso que exige sinal: manda o Pix. */
+    SINAL_PENDENTE,
+    /** Abriu um horario que alguem da lista de espera queria. */
+    VAGA_LIBERADA,
+    /** Aniversario do cliente, com cupom pessoal. */
+    ANIVERSARIO,
+    /** Cliente sem vir ha X dias e sem horario marcado. */
+    RETORNO
 }

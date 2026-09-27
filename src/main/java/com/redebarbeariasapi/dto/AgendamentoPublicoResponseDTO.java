@@ -1,5 +1,6 @@
 package com.redebarbeariasapi.dto;
 
+import com.redebarbeariasapi.model.SituacaoSinal;
 import com.redebarbeariasapi.model.StatusAgendamento;
 
 import java.math.BigDecimal;
@@ -12,5 +13,6 @@ public record AgendamentoPublicoResponseDTO(
         String barbeiroNome, String servicoNome, Integer duracaoMinutos,
         LocalDateTime inicio, LocalDateTime fim,
         BigDecimal valor, BigDecimal desconto, BigDecimal valorAPagar,
-        boolean podeCancelar, boolean podeAvaliar, Integer nota) {
+        boolean podeCancelar, boolean podeAvaliar, Integer nota,
+        BigDecimal sinalValor, SituacaoSinal sinalSituacao, LocalDateTime sinalExpiraEm) {
 }

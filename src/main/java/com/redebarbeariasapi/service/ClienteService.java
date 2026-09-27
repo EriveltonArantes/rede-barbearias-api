@@ -87,11 +87,21 @@ public class ClienteService {
         auditoria.registrar("EXCLUIR", "Cliente", id, c.getNome());
     }
 
-    /** Usado no agendamento online/balcao: acha pelo telefone ou cadastra na hora. */
+    /** Usado no balcao: acha pelo telefone ou cadastra na hora (a equipe pergunta sobre promocoes pessoalmente). */
     public Cliente obterOuCriar(String nome, String telefone, String email) {
+        return obterOuCriar(nome, telefone, email, null);
+    }
+
+    /**
+     * Agendamento online / lista de espera: aceitaMarketing vem da caixinha do formulario (LGPD).
+     * Cliente novo so recebe promocao se marcou; cliente antigo que marcou passa a receber;
+     * desmarcado nao tira um consentimento dado antes. null = nao perguntado (balcao).
+     */
+    public Cliente obterOuCriar(String nome, String telefone, String email, Boolean aceitaMarketing) {
         String tel = Textos.telefone(telefone);
         return repo.findByTelefone(tel).map(c -> {
             if (Textos.vazio(c.getEmail()) && !Textos.vazio(email)) c.setEmail(email.trim());
+            if (Boolean.TRUE.equals(aceitaMarketing)) c.setAceitaMarketing(true);
             return c;
         }).orElseGet(() -> {
             if (Textos.vazio(nome)) throw new com.redebarbeariasapi.exception.ValidacaoException("Informe o nome do cliente.");
@@ -99,6 +109,7 @@ public class ClienteService {
             c.setNome(nome.trim());
             c.setTelefone(tel);
             c.setEmail(Textos.vazio(email) ? null : email.trim());
+            if (aceitaMarketing != null) c.setAceitaMarketing(aceitaMarketing);
             return repo.save(c);
         });
     }

@@ -87,4 +87,19 @@ public class AgendamentoController {
         service.excluir(id);
         return ResponseEntity.noContent().build();
     }
+
+    @Operation(summary = "Sinal por Pix: RECEBIDO (conferiu no banco), DEVOLVIDO ou RETER")
+    @PreAuthorize("hasAnyRole('ADMIN','GERENTE','RECEPCAO')")
+    @PostMapping("/{id}/sinal")
+    public AgendamentoResponseDTO sinal(@PathVariable Long id, @RequestParam String acao) {
+        return service.sinal(id, acao);
+    }
+
+    @Operation(summary = "Horários com sinal numa situação (PENDENTE, A_DEVOLVER...)")
+    @PreAuthorize("hasAnyRole('ADMIN','GERENTE','RECEPCAO')")
+    @GetMapping("/sinais")
+    public List<AgendamentoResponseDTO> sinais(@RequestParam com.redebarbeariasapi.model.SituacaoSinal situacao,
+                                               @RequestParam(required = false) Long unidadeId) {
+        return service.sinais(situacao, unidadeId);
+    }
 }

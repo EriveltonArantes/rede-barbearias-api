@@ -78,6 +78,7 @@ public class NotificacaoService {
             if (!forcar && repo.countByAgendamentoIdAndTipoAndCanalAndStatus(a.getId(), tipo, canal.tipo(), StatusNotificacao.FALHOU) >= MAX_FALHAS) continue;
             Notificacao n = new Notificacao();
             n.setAgendamento(a);
+            n.setCliente(a.getCliente());
             n.setTipo(tipo);
             n.setCanal(canal.tipo());
             n.setDestino(destino);
@@ -103,7 +104,60 @@ public class NotificacaoService {
             case CONFIRMACAO, REAGENDAMENTO, LEMBRETE, LEMBRETE_PROXIMO -> ABERTOS.contains(a.getStatus()) && a.getInicio().isAfter(LocalDateTime.now());
             case CANCELAMENTO -> a.getStatus() == StatusAgendamento.CANCELADO && a.getInicio().isAfter(LocalDateTime.now());
             case AVALIACAO -> a.getStatus() == StatusAgendamento.CONCLUIDO && !avaliacoes.existsByAgendamentoId(a.getId());
+            case SINAL_PENDENTE -> a.aguardandoSinal() && ABERTOS.contains(a.getStatus()) && a.getInicio().isAfter(LocalDateTime.now());
+            // essas sao mandadas por enviarParaCliente (nao dependem de um horario do proprio cliente)
+            case VAGA_LIBERADA, ANIVERSARIO, RETORNO -> false;
         };
+    }
+
+    /**
+     * Mensagem pra um cliente que nao e "sobre o horario dele": vaga liberada da lista de espera,
+     * aniversario, retorno. Mesmas regras: nao repete (cliente + tipo + referencia), no maximo 3 falhas,
+     * cliente sem destino no canal nao recebe por ele. Devolve quantos envios deram certo.
+     */
+    @Transactional
+    public int enviarParaCliente(Cliente c, Agendamento relacionado, TipoNotificacao tipo, Mensagem m, String referencia) {
+        int ok = 0;
+        for (CanalNotificacao canal : canais) {
+            if (!canal.configurado()) continue;
+            String destino = canal.destino(m);
+            if (destino == null) continue;
+            if (repo.existsByClienteIdAndTipoAndCanalAndStatusAndReferencia(c.getId(), tipo, canal.tipo(), StatusNotificacao.ENVIADA, referencia)) continue;
+            if (repo.countByClienteIdAndTipoAndCanalAndStatusAndReferencia(c.getId(), tipo, canal.tipo(), StatusNotificacao.FALHOU, referencia) >= MAX_FALHAS) continue;
+            Notificacao n = new Notificacao();
+            n.setAgendamento(relacionado);
+            n.setCliente(c);
+            n.setTipo(tipo);
+            n.setCanal(canal.tipo());
+            n.setDestino(destino);
+            n.setReferencia(referencia.length() > 30 ? referencia.substring(0, 30) : referencia);
+            try {
+                canal.enviar(m, destino);
+                n.setStatus(StatusNotificacao.ENVIADA);
+                ok++;
+            } catch (Exception e) {
+                n.setStatus(StatusNotificacao.FALHOU);
+                String erro = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+                n.setErro(erro.length() > 500 ? erro.substring(0, 500) : erro);
+                log.warn("Falha enviando {} por {} para cliente {}: {}", tipo, canal.tipo(), c.getId(), n.getErro());
+            }
+            repo.save(n);
+        }
+        return ok;
+    }
+
+    /** Ja saiu por algum canal (pra rotina de aniversario/retorno nao recriar cupom). */
+    @Transactional(readOnly = true)
+    public boolean jaEnviado(Cliente c, TipoNotificacao tipo, String referencia) {
+        for (CanalNotificacaoTipo canal : CanalNotificacaoTipo.values()) {
+            if (repo.existsByClienteIdAndTipoAndCanalAndStatusAndReferencia(c.getId(), tipo, canal, StatusNotificacao.ENVIADA, referencia)) return true;
+        }
+        return false;
+    }
+
+    /** Algum canal ligado consegue chegar nesse cliente? (sem isso nao adianta gerar cupom). */
+    public boolean alcanca(Mensagem m) {
+        return canais.stream().anyMatch(c -> c.configurado() && c.destino(m) != null);
     }
 
     /**
@@ -199,8 +253,10 @@ public class NotificacaoService {
     }
 
     static NotificacaoResponseDTO dto(Notificacao n) {
-        return new NotificacaoResponseDTO(n.getId(), n.getAgendamento().getId(), n.getAgendamento().getCodigo(),
-                n.getAgendamento().getCliente().getNome(), n.getTipo(), n.getCanal(), n.getStatus(),
+        Agendamento a = n.getAgendamento();
+        Cliente c = n.getCliente() != null ? n.getCliente() : a != null ? a.getCliente() : null;
+        return new NotificacaoResponseDTO(n.getId(), a == null ? null : a.getId(), a == null ? null : a.getCodigo(),
+                c == null ? "" : c.getNome(), n.getTipo(), n.getCanal(), n.getStatus(),
                 n.getDestino(), n.getErro(), n.getDataHora());
     }
 }
