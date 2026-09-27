@@ -33,6 +33,8 @@ public class ClubeService {
     /** Dias de tolerancia depois do vencimento antes de suspender automaticamente. */
     private static final int CARENCIA_DIAS = 5;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.redebarbeariasapi.sistema.Saude saude;
     private final PlanoRepository planos;
     private final AssinaturaRepository assinaturas;
     private final PagamentoAssinaturaRepository pagamentos;
@@ -159,5 +161,6 @@ public class ClubeService {
             }
         }
         if (n > 0) log.info("{} assinatura(s) suspensas por falta de pagamento", n);
+        if (saude != null) saude.ok("clube", n + " suspensa(s)");
     }
 }

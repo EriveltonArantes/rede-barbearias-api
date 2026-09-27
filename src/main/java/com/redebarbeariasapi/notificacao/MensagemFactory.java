@@ -81,6 +81,19 @@ public class MensagemFactory {
         return siteUrl;
     }
 
+    /** Nome da barbearia (tela "Marca e aparência"); sem o servico (testes de unidade) fica o padrao. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.redebarbeariasapi.service.MarcaService marcaService;
+
+    public String marca() {
+        return marcaService == null ? com.redebarbeariasapi.model.Marca.NOME_PADRAO : marcaService.nome();
+    }
+
+    /** "Rede Barbearias — Savassi" vira "Rede Barbearias Savassi" nas mensagens. */
+    static String nomeUnidade(String nome) {
+        return nome == null ? "" : nome.replace(" — ", " ");
+    }
+
     /**
      * Cartela de fidelidade em texto: "✅✅✅⭕⭕⭕⭕⭕⭕⭕ 3 de 10 — faltam 7 pra ganhar um atendimento".
      * Funciona igual no e-mail e no WhatsApp.
@@ -101,7 +114,7 @@ public class MensagemFactory {
         String hora = a.getInicio().format(Textos.HORA);
         String servico = a.getServico().getNome();
         String barbeiro = a.getBarbeiro().getApelido() != null ? a.getBarbeiro().getApelido() : primeiroNome(a.getBarbeiro().getNome());
-        String unidade = a.getUnidade().getNome().replace("Rede Barbearias — ", "Rede Barbearias ");
+        String unidade = nomeUnidade(a.getUnidade().getNome());
         String endereco = a.getUnidade().getEndereco() + (a.getUnidade().getBairro() != null ? " — " + a.getUnidade().getBairro() : "");
         String linkHorario = siteUrl + "/#/meu-horario/" + a.getCodigo();
         String linkAgendar = siteUrl + "/#/agendar";
@@ -175,7 +188,7 @@ public class MensagemFactory {
         String dia = DIA.format(inicio);
         String quando = inicio.toLocalDate().equals(LocalDate.now()) ? "hoje" : inicio.toLocalDate().equals(LocalDate.now().plusDays(1)) ? "amanhã" : dia;
         String hora = inicio.format(Textos.HORA);
-        String unidade = e.getUnidade().getNome().replace("Rede Barbearias — ", "Rede Barbearias ");
+        String unidade = nomeUnidade(e.getUnidade().getNome());
         String link = siteUrl + "/#/agendar?unidade=" + e.getUnidade().getId() + "&servico=" + e.getServico().getId()
                 + "&data=" + inicio.toLocalDate() + (e.getBarbeiro() != null ? "&barbeiro=" + e.getBarbeiro().getId() : "");
         Map<String, String> d = new LinkedHashMap<>();
@@ -255,7 +268,7 @@ public class MensagemFactory {
             html.append("<a href=\"").append(esc(b[1])).append("\" style=\"display:inline-block;margin:0 8px 10px 0;background:#c0392b;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:999px;font-weight:bold;font-size:14px\">")
                 .append(esc(b[0])).append("</a>");
         }
-        html.append("<p style=\"margin:18px 0 0;font-size:12px;color:#8a7f72\">").append(esc(un != null ? un.getNome() : "Rede Barbearias"))
+        html.append("<p style=\"margin:18px 0 0;font-size:12px;color:#8a7f72\">").append(esc(un != null ? nomeUnidade(un.getNome()) : marca()))
             .append(un != null && un.getTelefone() != null ? " · " + esc(un.getTelefone()) : "")
             .append("<br>").append(esc(porQueRecebeu))
             .append("<br><a href=\"").append(esc(siteUrl + "/#/privacidade")).append("\" style=\"color:#8a7f72\">Política de privacidade</a></p>")
@@ -288,7 +301,7 @@ public class MensagemFactory {
     private String linkGoogle(Agendamento a, String unidade, String endereco) {
         DateTimeFormatter f = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss");
         return "https://calendar.google.com/calendar/render?action=TEMPLATE&ctz=America/Sao_Paulo"
-                + "&text=" + enc(a.getServico().getNome() + " — Rede Barbearias")
+                + "&text=" + enc(a.getServico().getNome() + " — " + marca())
                 + "&dates=" + a.getInicio().format(f) + "/" + a.getFim().format(f)
                 + "&location=" + enc(unidade + ", " + endereco)
                 + "&details=" + enc("Código " + a.getCodigo() + " · " + siteUrl + "/#/meu-horario/" + a.getCodigo());

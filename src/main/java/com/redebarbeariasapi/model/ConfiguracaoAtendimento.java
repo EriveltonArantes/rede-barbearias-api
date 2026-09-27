@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 public class ConfiguracaoAtendimento {
 
     public static final String SAUDACAO_PADRAO = """
-            Olá, {nome}! 💈 Seja bem-vindo(a) à Rede Barbearias.
+            Olá, {nome}! 💈 Seja bem-vindo(a) à {marca}.
 
             Pra agendar seu horário é rapidinho: escolha a unidade, o barbeiro e o horário por aqui 👇
             {link_agendar}

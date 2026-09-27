@@ -66,7 +66,7 @@ public class SecurityConfig {
                 }))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/", "/error", "/api/auth/login", "/api/auth/registrar", "/api/publico/**", "/api/whatsapp/webhook", "/api/pagamentos/mercadopago/webhook",
+                .requestMatchers("/", "/error", "/api/auth/login", "/api/auth/registrar", "/api/auth/esqueci-senha", "/api/auth/redefinir-senha", "/api/publico/**", "/api/whatsapp/webhook", "/api/pagamentos/mercadopago/webhook",
                         "/h2-console/**", "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**",
                         "/actuator/health", "/actuator/info").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/arquivos/**").permitAll()

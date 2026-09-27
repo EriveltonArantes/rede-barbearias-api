@@ -11,6 +11,7 @@ public interface NotificacaoRepository extends JpaRepository<Notificacao, Long> 
     long countByAgendamentoIdAndTipoAndCanalAndStatus(Long agendamentoId, TipoNotificacao tipo, CanalNotificacaoTipo canal, StatusNotificacao status);
     List<Notificacao> findByAgendamentoIdOrderByDataHoraDesc(Long agendamentoId);
     List<Notificacao> findTop200ByOrderByDataHoraDesc();
+    long countByCanalAndStatusAndDataHoraAfter(CanalNotificacaoTipo canal, StatusNotificacao status, java.time.LocalDateTime depois);
     void deleteByAgendamentoId(Long agendamentoId);
     /** Mensagens que nao sao de um horario (aniversario, retorno): o "ja mandei" e por cliente + referencia. */
     boolean existsByClienteIdAndTipoAndCanalAndStatusAndReferencia(

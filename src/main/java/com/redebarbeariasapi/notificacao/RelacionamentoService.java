@@ -31,6 +31,8 @@ public class RelacionamentoService {
     /** Se o servidor ficou desligado no dia exato, ainda manda nos dias seguintes (sem repetir). */
     private static final int TOLERANCIA_DIAS = 6;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.redebarbeariasapi.sistema.Saude saude;
     private final ClienteRepository clientes;
     private final AgendamentoRepository agendamentos;
     private final CupomRepository cupons;
@@ -54,8 +56,10 @@ public class RelacionamentoService {
         try {
             Map<String, Integer> r = processar(LocalDateTime.now());
             if (r.values().stream().anyMatch(v -> v > 0)) log.info("Relacionamento: {}", r);
+            if (saude != null) saude.ok("relacionamento", r.toString());
         } catch (Exception e) {
             log.warn("Rodada de aniversário/retorno falhou: {}", e.getMessage());
+            if (saude != null) saude.falha("relacionamento", e.toString());
         }
     }
 

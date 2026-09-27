@@ -12,5 +12,7 @@ public record UsuarioRequestDTO(
         Long unidadeId,
         Long barbeiroId,
         Long clienteId,
-        Boolean ativo) {
+        Boolean ativo,
+        @Size(max = 150) String email,
+        @Size(max = 30) String telefone) {
 }

@@ -14,4 +14,8 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     List<Usuario> findAllByOrderByUsername();
     List<Usuario> findByUnidadeIdOrderByUsername(Long unidadeId);
     Optional<Usuario> findByClienteId(Long clienteId);
+    List<Usuario> findByEmailIgnoreCase(String email);
+    List<Usuario> findByTelefone(String telefone);
+    List<Usuario> findByBarbeiroId(Long barbeiroId);
+    List<Usuario> findByPapelAndAtivoTrue(Papel papel);
 }

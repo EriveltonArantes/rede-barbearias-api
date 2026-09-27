@@ -22,6 +22,7 @@ public class AuthController {
 
     private final AuthService service;
     private final RateLimiter rateLimiter;
+    private final com.redebarbeariasapi.service.RecuperacaoSenhaService recuperacao;
 
     @Operation(summary = "Login — devolve o token JWT e o papel do usuário")
     @PostMapping("/login")
@@ -50,5 +51,25 @@ public class AuthController {
     public ResponseEntity<Void> trocarSenha(@Valid @RequestBody TrocarSenhaDTO dto) {
         service.trocarSenha(dto);
         return ResponseEntity.noContent().build();
+    }
+
+    public record EsqueciSenhaDTO(@jakarta.validation.constraints.NotBlank(message = "informe usuário, celular ou e-mail") String login) {}
+
+    public record RedefinirSenhaDTO(@jakarta.validation.constraints.NotBlank(message = "é obrigatório") String login,
+                                    @jakarta.validation.constraints.NotBlank(message = "é obrigatório") String codigo,
+                                    @jakarta.validation.constraints.NotBlank(message = "é obrigatório") String novaSenha) {}
+
+    @Operation(summary = "Esqueci minha senha — manda um código pro WhatsApp/e-mail cadastrado (resposta sempre igual)")
+    @PostMapping("/esqueci-senha")
+    public Map<String, String> esqueciSenha(@Valid @RequestBody EsqueciSenhaDTO dto, HttpServletRequest req) {
+        rateLimiter.verificar("esqueci-senha", req);
+        return Map.of("mensagem", recuperacao.pedir(dto.login()));
+    }
+
+    @Operation(summary = "Cria a senha nova com o código recebido e já entra")
+    @PostMapping("/redefinir-senha")
+    public LoginResponseDTO redefinirSenha(@Valid @RequestBody RedefinirSenhaDTO dto, HttpServletRequest req) {
+        rateLimiter.verificar("redefinir-senha", req);
+        return service.redefinirSenha(dto.login(), dto.codigo(), dto.novaSenha());
     }
 }

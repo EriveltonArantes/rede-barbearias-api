@@ -36,6 +36,7 @@ public class UsuarioService {
     private final ClienteRepository clientes;
     private final PasswordEncoder encoder;
     private final AuditoriaService auditoria;
+    private final com.redebarbeariasapi.repository.RecuperacaoSenhaRepository recuperacoes;
 
     @Transactional(readOnly = true)
     public List<UsuarioResponseDTO> listar() {
@@ -82,6 +83,7 @@ public class UsuarioService {
         exigirGerenciavel(u);
         if (u.getId().equals(Sessao.atual().id())) throw new BusinessException("Você não pode excluir a própria conta.");
         if (u.getPapel() == Papel.ADMIN) garantirOutroAdmin(id);
+        recuperacoes.apagarDoUsuario(id);
         repo.delete(u);
         auditoria.registrar("EXCLUIR", "Usuario", id, u.getUsername());
     }
@@ -121,6 +123,10 @@ public class UsuarioService {
             case ADMIN -> { }
         }
         if (dto.ativo() != null) u.setAtivo(dto.ativo());
+        String email = dto.email() == null ? "" : dto.email().trim();
+        if (!email.isEmpty() && !email.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) throw new ValidacaoException("E-mail inválido.");
+        u.setEmail(email.isEmpty() ? null : email.toLowerCase());
+        u.setTelefone(Textos.vazio(dto.telefone()) ? null : Textos.telefone(dto.telefone()));
     }
 
     private void exigirGerenciavel(Usuario u) {

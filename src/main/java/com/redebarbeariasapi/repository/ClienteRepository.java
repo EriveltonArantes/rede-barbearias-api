@@ -11,6 +11,7 @@ import java.util.Optional;
 
 public interface ClienteRepository extends JpaRepository<Cliente, Long> {
     Optional<Cliente> findByTelefone(String telefone);
+    List<Cliente> findByEmailIgnoreCase(String email);
 
     @Query("select c from Cliente c where lower(c.nome) like lower(concat('%', :q, '%')) " +
            "or c.telefone like concat('%', :q, '%') or lower(coalesce(c.email, '')) like lower(concat('%', :q, '%')) order by c.nome")

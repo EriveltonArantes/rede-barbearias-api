@@ -25,6 +25,8 @@ public class SinalRotina {
 
     private static final Logger log = LoggerFactory.getLogger(SinalRotina.class);
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.redebarbeariasapi.sistema.Saude saude;
     private final SinalService sinal;
     private final AgendamentoService agenda;
     private final AgendamentoRepository agendamentos;
@@ -44,8 +46,10 @@ public class SinalRotina {
         try {
             Map<String, Integer> r = processar(LocalDateTime.now());
             if (r.values().stream().anyMatch(v -> v > 0)) log.info("Sinais: {}", r);
+            if (saude != null) saude.ok("sinal", r.toString());
         } catch (Exception e) {
             log.warn("Rodada dos sinais falhou: {}", e.getMessage());
+            if (saude != null) saude.falha("sinal", e.toString());
         }
     }
 

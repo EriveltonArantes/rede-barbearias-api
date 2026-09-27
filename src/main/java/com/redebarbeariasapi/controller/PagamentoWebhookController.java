@@ -19,6 +19,8 @@ import org.springframework.web.bind.annotation.*;
 public class PagamentoWebhookController {
 
     private static final Logger log = LoggerFactory.getLogger(PagamentoWebhookController.class);
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.redebarbeariasapi.sistema.Saude saude;
     private final SinalService sinal;
 
     public PagamentoWebhookController(SinalService sinal) {
@@ -36,9 +38,11 @@ public class PagamentoWebhookController {
             try {
                 boolean ok = sinal.aoNotificarGateway(id);
                 log.info("Webhook Mercado Pago {}: {}", id, ok ? "sinal confirmado" : "nada a fazer");
+                if (saude != null) saude.ok("webhook-pix");
             } catch (Exception e) {
                 // 200 mesmo assim: a rotina de 5 min pergunta de novo ao gateway
                 log.warn("Webhook Mercado Pago {} falhou: {}", id, e.getMessage());
+                if (saude != null) saude.falha("webhook-pix", e.getMessage());
             }
         }
         return ResponseEntity.ok("ok");

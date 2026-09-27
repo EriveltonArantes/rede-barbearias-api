@@ -100,6 +100,6 @@ public final class OperacaoMapper {
                 u.getBarbeiro() == null ? null : u.getBarbeiro().getNome(),
                 u.getCliente() == null ? null : u.getCliente().getId(),
                 u.getCliente() == null ? null : u.getCliente().getNome(),
-                u.isAtivo(), u.getUltimoLogin(), u.getCriadoEm());
+                u.isAtivo(), u.getUltimoLogin(), u.getCriadoEm(), u.getEmail(), u.getTelefone());
     }
 }

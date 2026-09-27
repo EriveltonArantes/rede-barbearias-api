@@ -39,6 +39,8 @@ public class ListaEsperaService {
     static final List<ListaEspera.Status> NA_FILA = List.of(ListaEspera.Status.AGUARDANDO, ListaEspera.Status.AVISADO);
     private static final int MAX_POR_CLIENTE = 3;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.redebarbeariasapi.sistema.Saude saude;
     private final ListaEsperaRepository repo;
     private final UnidadeRepository unidades;
     private final ServicoRepository servicos;
@@ -192,6 +194,7 @@ public class ListaEsperaService {
     public void expirar() {
         int n = repo.expirarAntesDe(LocalDate.now());
         if (n > 0) log.info("Lista de espera: {} pedido(s) de dias que já passaram expiraram", n);
+        if (saude != null) saude.ok("lista-espera");
     }
 
     static Map<String, Object> dto(ListaEspera e) {

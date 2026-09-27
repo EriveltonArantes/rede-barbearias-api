@@ -32,13 +32,19 @@ Java 21 · Spring Boot 3.4 · Spring Security + JWT · Spring Data JPA (H2 / Pos
 - **Lista de espera**: dia lotado → o cliente deixa o contato; quando alguém cancela, os primeiros da fila que cabem no horário liberado recebem o link já preenchido.
 - **Aniversário e convite de retorno** automáticos, com cupom pessoal de uso único, só pra quem consentiu (LGPD).
 - **LGPD**: política de privacidade no site, consentimento de promoções separado dos lembretes, cliente baixa os próprios dados (JSON) e pede exclusão (anonimização que preserva o financeiro).
+- **Esqueci minha senha**: a pessoa entra com usuário, **celular ou e-mail**; pede o código e recebe 6 números no WhatsApp (modelo de autenticação da Meta) e/ou e-mail — vale 30 min, 5 tentativas, uso único, só o hash fica no banco, resposta igual exista ou não a conta. Sem canal automático (ou não chegou), o pedido aparece no painel e a recepção gera o código e manda pelo WhatsApp da barbearia em 1 clique (vale 24h).
+- **Marca configurável**: nome, logo, cores, slogan, cidade, WhatsApp, Instagram e e-mail pela tela "Marca e aparência" — o site, o painel, o app no celular, os e-mails e as mensagens de WhatsApp mudam juntos. Vender pra outra barbearia = preencher essa tela, sem mexer no código.
+- **App no celular (PWA)**: "Instalar app" no Android/Chrome e passo a passo no iPhone; manifesto e ícones gerados pelo servidor com a marca (logo enviada ou as iniciais nas cores da barbearia), abre em tela cheia e funciona sem sinal na tela inicial.
+- **Saúde do sistema** (só admin): semáforo com o que está bom/perigoso (banco temporário, JWT de desenvolvimento, senha padrão do admin, alertas/backup sem destino), banco (tempo de resposta, tamanho), WhatsApp/e-mail enviados e com falha nas últimas 24h, cada rotina automática com a última execução, backup e últimos alertas.
+- **Alertas pro responsável**: Telegram e/ou e-mail quando dá erro inesperado (500), quando a mesma peça falha 3 vezes seguidas (WhatsApp, e-mail, Pix, banco, backup...), quando a rodada de lembretes para ou a memória aperta — e outro aviso quando volta. Anti-spam: o mesmo problema só é avisado de novo depois de 1 hora.
+- **Backup semanal fora do servidor**: todo domingo 3h um .zip com todas as tabelas em CSV (abre no Excel) + fotos vai pro Telegram e/ou e-mail; também dá pra baixar no painel a qualquer hora. Senhas não entram no backup.
 - **Segurança**: papéis ADMIN / GERENTE / RECEPCAO / BARBEIRO / CLIENTE com escopo por unidade, auditoria de ações sensíveis, upload com verificação de tipo real do arquivo.
 - **Seed de demonstração** realista (3 unidades, 7 barbeiros, 600 clientes, ~60 dias de histórico relativo à data atual).
 
 ## Rodando
 ```bash
 mvn spring-boot:run          # H2 em memória + dados de demonstração em http://localhost:8080
-mvn test                     # 61 testes (regras, notificações, WhatsApp, sinal, lista de espera, relacionamento, LGPD)
+mvn test                     # 72 testes (regras, notificações, WhatsApp, sinal, lista de espera, relacionamento, LGPD, senha, marca, saúde, backup)
 docker build -t rede-barbearias-api . && docker run -p 8080:8080 rede-barbearias-api
 ```
 
@@ -56,6 +62,11 @@ docker build -t rede-barbearias-api . && docker run -p 8080:8080 rede-barbearias
 | `LEMBRETE_HORA`, `LEMBRETE_ANTES_MINUTOS` | hora do lembrete do dia (padrão 7) e antecedência do 2º lembrete (padrão 60, `0` desliga) |
 | `PIX_CHAVE`, `PIX_NOME`, `PIX_CIDADE` | recebedor do Pix |
 | `SITE_URL` | links usados nas mensagens |
+| `WHATSAPP_MODELO_CODIGO` | modelo de **autenticação** aprovado na Meta pro código de nova senha (padrão `codigo_acesso`) |
+| `MAIL_FROM_NAME` | nome do remetente dos e-mails (vazio = nome da barbearia da tela "Marca") |
+| `ALERTA_TELEGRAM_TOKEN`, `ALERTA_TELEGRAM_CHAT` | alertas e backup semanal no seu Telegram (veja abaixo) |
+| `ALERTA_EMAIL` | alertas por e-mail (usa o SMTP acima) |
+| `BACKUP_EMAIL`, `BACKUP_CRON` | e-mail do backup semanal (vazio = `ALERTA_EMAIL`) e quando roda (padrão domingo 3h: `0 0 3 * * SUN`) |
 
 ## Colocar em produção pra uma barbearia de verdade
 1. **Banco**: crie um projeto grátis no [Neon](https://neon.tech) (região São Paulo) e copie a *connection string*.
@@ -84,7 +95,13 @@ A taxa do Mercado Pago pro Pix é cobrada da barbearia (confira a tarifa atual n
 2. *Add New Monitor* → tipo **HTTP(s)**, URL `https://SEU-SERVICO.onrender.com/actuator/health`, intervalo **5 minutos**.
 3. Em *Alert contacts*, coloque seu e-mail (e o app deles no celular, pra receber push).
 
-Você recebe um aviso quando a API parar de responder e outro quando voltar. Bônus: o acesso a cada 5 minutos também impede que
+Você recebe um aviso quando a API parar de responder e outro quando voltar (servidor fora do ar não consegue avisar ninguém — por isso o monitor é de fora).
+
+**Alertas de dentro do sistema (Telegram, grátis):** erro inesperado, WhatsApp/e-mail/Pix falhando, lembretes parados, backup que não saiu.
+1. No Telegram, fale com o **@BotFather** → `/newbot` → escolha um nome → copie o **token**.
+2. Mande qualquer mensagem pro seu bot novo e abra `https://api.telegram.org/bot<TOKEN>/getUpdates` — o número em `"chat":{"id": ...}` é o **chat id**.
+3. No Render: `ALERTA_TELEGRAM_TOKEN` e `ALERTA_TELEGRAM_CHAT`. No painel → **Saúde do sistema** → "Mandar alerta de teste".
+O mesmo bot recebe o **backup semanal** (arquivo .zip) — cópia fora do servidor, de graça. Bônus: o acesso a cada 5 minutos também impede que
 o plano grátis do Render "durma" — mas o plano pago continua sendo o recomendado pra uma barbearia de verdade (o grátis reinicia e tem limite de horas por mês).
 
 ## Endereço próprio (ex.: barbeariadafulana.com.br)
@@ -130,8 +147,10 @@ Cliente manda "oi" no número da barbearia → a Meta entrega a mensagem junto c
 3. Mover o front da Vercel pro Render Static Site (uso comercial).
 4. WhatsApp Business + Meta (número que a barbearia já usa), modelos de mensagem aprovados — passo a passo no painel em Notificações.
 5. E-mail (Brevo grátis) — passo a passo no painel.
-6. Opcionais: Mercado Pago (Pix automático), UptimeRobot (aviso de queda), domínio próprio.
-7. Painel → Regras e automações: razão social, CNPJ, e-mail de privacidade; cadastrar unidades/barbeiros/serviços reais com `APP_SEED=false`.
+6. Bot do Telegram (alertas + backup semanal) e UptimeRobot (aviso de queda) — 5 minutos, grátis.
+7. Painel → **Marca e aparência**: nome, logo, cores e contatos da barbearia; → **Saúde do sistema**: tudo verde antes de entregar (troque a senha do admin).
+8. Opcionais: Mercado Pago (Pix automático), domínio próprio, modelo `codigo_acesso` (autenticação) aprovado na Meta pro código de senha sair sozinho.
+9. Painel → Regras e automações: razão social, CNPJ, e-mail de privacidade; cadastrar unidades/barbeiros/serviços reais com `APP_SEED=false`.
 
 **Melhoria combinada — formulário já preenchido a partir do WhatsApp:**
 hoje o nome vem do WhatsApp só pra mensagem; no site a pessoa ainda digita nome e celular. Plano: cada resposta automática leva um link com um **código temporário** (ex.: `#/agendar?c=K7M2QX9A`, vale algumas horas, uso único); o site troca o código pelo nome e celular e abre o formulário preenchido — o cliente só escolhe o horário. O telefone **não** vai direto no link (dado pessoal em URL fica em histórico/log).

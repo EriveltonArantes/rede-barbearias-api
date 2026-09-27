@@ -20,6 +20,9 @@ public class Usuario {
     @Column(nullable = false)
     private String password;
     private String nome;
+    /** Contato pra recuperar a senha (equipe). Cliente e barbeiro usam o da propria ficha se este ficar vazio. */
+    private String email;
+    private String telefone;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

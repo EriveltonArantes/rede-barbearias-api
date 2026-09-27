@@ -19,11 +19,13 @@ public class EmailCanal implements CanalNotificacao {
     private final String host;
     private final String remetente;
     private final String remetenteNome;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.redebarbeariasapi.service.MarcaService marca;
 
     public EmailCanal(ObjectProvider<JavaMailSender> mailSender,
                       @Value("${spring.mail.host:}") String host,
                       @Value("${app.notificacoes.remetente:}") String remetente,
-                      @Value("${app.notificacoes.remetente-nome:Rede Barbearias}") String remetenteNome) {
+                      @Value("${app.notificacoes.remetente-nome:}") String remetenteNome) {
         this.mailSender = mailSender;
         this.host = host;
         this.remetente = remetente;
@@ -50,7 +52,7 @@ public class EmailCanal implements CanalNotificacao {
         JavaMailSender sender = mailSender.getObject();
         MimeMessage msg = sender.createMimeMessage();
         MimeMessageHelper h = new MimeMessageHelper(msg, true, StandardCharsets.UTF_8.name());
-        h.setFrom(new InternetAddress(remetente, remetenteNome, StandardCharsets.UTF_8.name()));
+        h.setFrom(new InternetAddress(remetente, remetenteNome.isBlank() && marca != null ? marca.nome() : remetenteNome, StandardCharsets.UTF_8.name()));
         h.setTo(new InternetAddress(destino, m.nomeCliente(), StandardCharsets.UTF_8.name()));
         h.setSubject(m.assunto());
         h.setText(m.texto(), m.html());

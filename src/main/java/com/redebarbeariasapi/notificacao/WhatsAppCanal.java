@@ -23,6 +23,9 @@ public class WhatsAppCanal implements CanalNotificacao {
     private final String phoneNumberId;
     private final String idioma;
     private final RestClient http;
+    /** Modelo de AUTENTICACAO aprovado na Meta pro codigo de nova senha. */
+    @Value("${app.whatsapp.modelo-codigo:codigo_acesso}")
+    private String modeloCodigo = "codigo_acesso";
 
     public WhatsAppCanal(@Value("${app.whatsapp.token:}") String token,
                          @Value("${app.whatsapp.phone-number-id:}") String phoneNumberId,
@@ -73,6 +76,36 @@ public class WhatsAppCanal implements CanalNotificacao {
                         "name", m.modeloWhatsApp(),
                         "language", Map.of("code", idioma),
                         "components", componentes));
+        try {
+            http.post().uri("/{id}/messages", phoneNumberId)
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(corpo)
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (RestClientResponseException e) {
+            String txt = e.getResponseBodyAsString();
+            throw new IllegalStateException("Meta respondeu " + e.getStatusCode().value() + ": "
+                    + (txt.length() > 300 ? txt.substring(0, 300) : txt));
+        }
+    }
+
+    /**
+     * Codigo de nova senha. Usa um modelo da categoria AUTENTICACAO da Meta (botao "Copiar codigo"):
+     * o codigo vai no corpo e no parametro do botao. Nome do modelo em WHATSAPP_MODELO_CODIGO.
+     */
+    public void enviarCodigo(String destino, String codigo) {
+        Map<String, Object> corpo = Map.of(
+                "messaging_product", "whatsapp",
+                "to", destino,
+                "type", "template",
+                "template", Map.of(
+                        "name", modeloCodigo,
+                        "language", Map.of("code", idioma),
+                        "components", List.of(
+                                Map.of("type", "body", "parameters", List.of(Map.of("type", "text", "text", codigo))),
+                                Map.of("type", "button", "sub_type", "url", "index", "0",
+                                        "parameters", List.of(Map.of("type", "text", "text", codigo))))));
         try {
             http.post().uri("/{id}/messages", phoneNumberId)
                     .header("Authorization", "Bearer " + token)

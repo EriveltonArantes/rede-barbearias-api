@@ -27,6 +27,8 @@ public class NotificacaoService {
     private static final int MAX_FALHAS = 3;
     private static final Set<StatusAgendamento> ABERTOS = Set.of(StatusAgendamento.AGENDADO, StatusAgendamento.CONFIRMADO);
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.redebarbeariasapi.sistema.Saude saude;
     private final List<CanalNotificacao> canais;
     private final MensagemFactory mensagens;
     private final NotificacaoRepository repo;
@@ -86,11 +88,13 @@ public class NotificacaoService {
             try {
                 canal.enviar(m, destino);
                 n.setStatus(StatusNotificacao.ENVIADA);
+                if (saude != null) saude.ok(canal.tipo().name().toLowerCase());
                 ok++;
             } catch (Exception e) {
                 n.setStatus(StatusNotificacao.FALHOU);
                 String erro = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
                 n.setErro(erro.length() > 500 ? erro.substring(0, 500) : erro);
+                if (saude != null) saude.falha(canal.tipo().name().toLowerCase(), n.getErro());
                 log.warn("Falha enviando {} por {} para agendamento {}: {}", tipo, canal.tipo(), a.getId(), n.getErro());
             }
             repo.save(n);
@@ -134,11 +138,13 @@ public class NotificacaoService {
             try {
                 canal.enviar(m, destino);
                 n.setStatus(StatusNotificacao.ENVIADA);
+                if (saude != null) saude.ok(canal.tipo().name().toLowerCase());
                 ok++;
             } catch (Exception e) {
                 n.setStatus(StatusNotificacao.FALHOU);
                 String erro = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
                 n.setErro(erro.length() > 500 ? erro.substring(0, 500) : erro);
+                if (saude != null) saude.falha(canal.tipo().name().toLowerCase(), n.getErro());
                 log.warn("Falha enviando {} por {} para cliente {}: {}", tipo, canal.tipo(), c.getId(), n.getErro());
             }
             repo.save(n);

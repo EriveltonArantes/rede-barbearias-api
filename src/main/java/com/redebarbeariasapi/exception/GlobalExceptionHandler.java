@@ -107,9 +107,20 @@ public class GlobalExceptionHandler {
         return resposta(HttpStatus.CONFLICT, "Não é possível concluir: registro duplicado ou vinculado a outro(s). Desative em vez de excluir, ou remova os vínculos antes.");
     }
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.redebarbeariasapi.sistema.AlertaService alertas;
+
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> generico(Exception ex) {
+    public ResponseEntity<Map<String, Object>> generico(Exception ex, jakarta.servlet.http.HttpServletRequest req) {
         log.error("Erro inesperado", ex);
+        if (alertas != null) {
+            // erro 500 = bug ou servico fora: o responsavel fica sabendo na hora (1 aviso por tipo de erro/rota por hora)
+            StackTraceElement onde = java.util.Arrays.stream(ex.getStackTrace())
+                    .filter(s -> s.getClassName().startsWith("com.redebarbeariasapi")).findFirst().orElse(null);
+            String rota = req.getMethod() + " " + req.getRequestURI();
+            alertas.avisar("500:" + ex.getClass().getName() + ":" + rota.replaceAll("/\\d+", "/{id}"), "🔴 Erro inesperado em " + rota,
+                    ex.getClass().getSimpleName() + ": " + ex.getMessage() + (onde == null ? "" : "\nem " + onde));
+        }
         return resposta(HttpStatus.INTERNAL_SERVER_ERROR, "Erro interno inesperado. Tente novamente; se persistir, fale com o suporte.");
     }
 }

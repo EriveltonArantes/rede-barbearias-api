@@ -22,6 +22,9 @@ public class NotificacaoListener {
 
     private static final Logger log = LoggerFactory.getLogger(NotificacaoListener.class);
     private final NotificacaoService service;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.redebarbeariasapi.sistema.Saude saude;
+
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -38,8 +41,10 @@ public class NotificacaoListener {
         try {
             Map<String, Integer> r = service.processarAutomaticos(LocalDateTime.now());
             if (r.values().stream().anyMatch(v -> v > 0)) log.info("Notificacoes automaticas: {}", r);
+            if (saude != null) saude.ok("lembretes", r.toString());
         } catch (Exception ex) {
             log.warn("Rodada de notificacoes falhou: {}", ex.getMessage());
+            if (saude != null) saude.falha("lembretes", ex.toString());
         }
     }
 }

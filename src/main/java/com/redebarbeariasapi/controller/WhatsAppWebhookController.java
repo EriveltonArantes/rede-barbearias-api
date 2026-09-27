@@ -31,6 +31,8 @@ public class WhatsAppWebhookController {
 
     private static final Logger log = LoggerFactory.getLogger(WhatsAppWebhookController.class);
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.redebarbeariasapi.sistema.Saude saude;
     private final AtendimentoWhatsAppService atendimento;
     private final ObjectMapper json;
     private final String verifyToken;
@@ -65,10 +67,12 @@ public class WhatsAppWebhookController {
             return ResponseEntity.status(403).body("app secret não configurado");
         }
         if (!assinaturaValida(corpo, assinatura)) {
+            if (saude != null) saude.falha("webhook-whatsapp", "assinatura inválida — confira o WHATSAPP_APP_SECRET");
             return ResponseEntity.status(403).body("assinatura inválida");
         }
         try {
             JsonNode raiz = json.readTree(corpo);
+            if (saude != null) saude.ok("webhook-whatsapp");
             for (JsonNode entry : raiz.path("entry")) {
                 for (JsonNode change : entry.path("changes")) {
                     JsonNode valor = change.path("value");

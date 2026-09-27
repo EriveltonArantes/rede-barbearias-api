@@ -32,9 +32,10 @@ public class AuthService {
     private final PasswordEncoder encoder;
     private final JwtUtil jwt;
     private final AuditoriaService auditoria;
+    private final RecuperacaoSenhaService recuperacao;
 
     public Optional<LoginResponseDTO> login(LoginRequestDTO dto) {
-        return usuarios.findByUsernameIgnoreCase(dto.username().trim())
+        return recuperacao.localizar(dto.username())
                 .filter(Usuario::isAtivo)
                 .filter(u -> encoder.matches(dto.password(), u.getPassword()))
                 .map(u -> {
@@ -79,6 +80,13 @@ public class AuthService {
         if (dto.senhaAtual().equals(dto.novaSenha())) throw new ValidacaoException("A nova senha precisa ser diferente da atual.");
         u.setPassword(encoder.encode(dto.novaSenha()));
         auditoria.registrar("TROCAR_SENHA", "Usuario", u.getId(), u.getUsername());
+    }
+
+    /** Codigo do "esqueci minha senha" certo: grava a senha nova e ja devolve logado. */
+    @Transactional(noRollbackFor = ValidacaoException.class) // tentativa errada precisa ficar gravada
+    public LoginResponseDTO redefinirSenha(String login, String codigo, String novaSenha) {
+        Usuario u = recuperacao.redefinir(login, codigo, novaSenha);
+        return resposta(u, jwt.gerarToken(u.getUsername(), u.getPapel().name()));
     }
 
     private static LoginResponseDTO resposta(Usuario u, String token) {

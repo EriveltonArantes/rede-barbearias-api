@@ -320,6 +320,7 @@ public class AtendimentoWhatsAppService {
                 .replace("{link_agendar}", site + "/#/agendar")
                 .replace("{link_site}", site)
                 .replace("{abre}", abre == null ? "" : abre)
+                .replace("{marca}", mensagens.marca())
                 .replace("{nome}", nome);
         // "Olá, !" fica feio quando o perfil nao tem nome
         return texto.replaceAll("(?i)(ol[áa]|oi|bom dia|boa tarde|boa noite), !", "$1!").replace(" , ", " ");
