@@ -96,3 +96,44 @@ o plano grátis do Render "durma" — mas o plano pago continua sendo o recomend
 
 O CORS da API já aceita qualquer origem, então trocar o endereço do site não exige mudança no código.
 
+
+## Quanto custa pra rodar (estimativa, set/2026)
+| Item | Onde | Por mês | Por ano |
+|---|---|---|---|
+| API (back) | Render — plano Starter (sempre ligado) | US$ 7 | US$ 84 |
+| Site + painel (front) | Render — Static Site | grátis | grátis |
+| Banco de dados | Neon — plano grátis | grátis | grátis |
+| Domínio próprio (opcional) | registro.br | — | ~R$ 40 |
+| **Total** | | **~US$ 7** | **~US$ 84 + domínio ≈ R$ 520/ano** |
+
+- Em reais depende do dólar + IOF de cartão internacional (~3,5%): com dólar a R$ 5,00 ≈ R$ 435/ano; a R$ 5,50 ≈ R$ 480; a R$ 6,00 ≈ R$ 520 (sem o domínio).
+- **Front na Vercel:** o plano grátis (Hobby) é pra uso pessoal/não comercial; pra barbearia de verdade, mover o front pro Render Static Site (grátis e aceita uso comercial) em vez de pagar o Vercel Pro (~US$ 20/mês).
+- **Fora do valor fixo:** mensagens do WhatsApp que a barbearia inicia (lembretes, aniversário, retorno) custam centavos cada na Meta; responder quem escreveu primeiro (a resposta automática) é grátis. Pix pelo Mercado Pago tem taxa por transação.
+- Preços mudam: confira no site de cada serviço na hora de contratar.
+
+## Resposta automática no WhatsApp — como funciona
+Cliente manda "oi" no número da barbearia → a Meta entrega a mensagem junto com o **nome do perfil do WhatsApp** → o sistema responde na hora:
+
+> Olá, João! 💈 Seja bem-vindo(a) à Rede Barbearias.
+> Pra agendar seu horário é rapidinho 👇
+> https://barbeariadafulana.com.br/#/agendar
+
+- O link sai com o endereço de `SITE_URL` (com domínio próprio, já vai o domínio).
+- Se o número já é de um cliente cadastrado (inclusive quando a Meta manda o celular sem o 9), usa o nome do cadastro e acrescenta o próximo horário, o link pra ver/cancelar e a cartela de fidelidade.
+- Perfil sem nome → "Olá!". Fora do horário de todas as unidades → "estamos fechados, voltamos amanhã às 9h" + link.
+- Responde de novo o mesmo número só depois do intervalo configurado (padrão 12h); fora isso a conversa segue com a equipe no app do WhatsApp Business.
+
+## Próximos passos
+**Pra colocar no ar de verdade (depende do dono):**
+1. Neon (grátis) → `DATABASE_URL` no Render. Sem isso o banco é H2 em memória e **cada reinício apaga os dados**.
+2. Render → plano Starter (sem ele o servidor dorme e os lembretes não saem).
+3. Mover o front da Vercel pro Render Static Site (uso comercial).
+4. WhatsApp Business + Meta (número que a barbearia já usa), modelos de mensagem aprovados — passo a passo no painel em Notificações.
+5. E-mail (Brevo grátis) — passo a passo no painel.
+6. Opcionais: Mercado Pago (Pix automático), UptimeRobot (aviso de queda), domínio próprio.
+7. Painel → Regras e automações: razão social, CNPJ, e-mail de privacidade; cadastrar unidades/barbeiros/serviços reais com `APP_SEED=false`.
+
+**Melhoria combinada — formulário já preenchido a partir do WhatsApp:**
+hoje o nome vem do WhatsApp só pra mensagem; no site a pessoa ainda digita nome e celular. Plano: cada resposta automática leva um link com um **código temporário** (ex.: `#/agendar?c=K7M2QX9A`, vale algumas horas, uso único); o site troca o código pelo nome e celular e abre o formulário preenchido — o cliente só escolhe o horário. O telefone **não** vai direto no link (dado pessoal em URL fica em histórico/log).
+
+**Ainda não validado com serviço real:** envio pelo WhatsApp oficial (precisa da conta Meta), Pix pelo Mercado Pago (testes usam gateway falso), e-mail real (precisa da Brevo), layout das telas novas no celular.
